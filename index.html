@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f97316">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Pastanaga 🥕</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#faf7f2; --card:#ffffff; --ink:#1c1917; --muted:#78716c;
+    --carrot:#f97316; --carrot-soft:#fff1e6; --green:#16a34a; --green-soft:#ecfdf3;
+    --lime:#65a30d; --orange:#ea8b0c; --red:#dc2626; --red-soft:#fef2f2;
+    --line:#eceae6; --shadow:0 2px 10px rgba(28,25,23,.06);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:16px;
+    padding-bottom:calc(76px + env(safe-area-inset-bottom));
+  }
+  .wrap{max-width:480px;margin:0 auto;padding:16px}
+  h1{font-size:26px;font-weight:800;letter-spacing:-.5px}
+  h2{font-size:19px;font-weight:800;letter-spacing:-.3px}
+  .muted{color:var(--muted);font-size:13px}
+  .card{background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+  .btn{
+    display:block;width:100%;border:0;border-radius:14px;padding:15px;
+    font-size:16px;font-weight:700;cursor:pointer;text-align:center;
+    background:var(--carrot);color:#fff;transition:transform .05s;
+  }
+  .btn:active{transform:scale(.98)}
+  .btn.sec{background:transparent;color:var(--ink);border:2px solid var(--line)}
+  .btn.green{background:var(--green)}
+  .btn:disabled{opacity:.5}
+  .btn.sm{padding:10px;font-size:14px;border-radius:12px}
+  label{display:block;font-size:13px;font-weight:700;margin:12px 0 5px}
+  input[type=text],input[type=number],input[type=password],input[type=email],select{
+    width:100%;padding:13px;border:2px solid var(--line);border-radius:12px;
+    font-size:16px;background:#fff;color:var(--ink);
+  }
+  input:focus,select:focus{outline:none;border-color:var(--carrot)}
+  .row{display:flex;gap:10px}.row>*{flex:1}
+  .seg{display:flex;gap:8px;margin:4px 0}
+  .seg button{
+    flex:1;padding:11px 6px;border:2px solid var(--line);border-radius:12px;
+    background:#fff;font-size:14px;font-weight:700;cursor:pointer;color:var(--ink);
+  }
+  .seg button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .nav{
+    position:fixed;bottom:0;left:0;right:0;z-index:50;
+    background:#fff;border-top:1px solid var(--line);
+    display:flex;max-width:480px;margin:0 auto;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .nav button{flex:1;border:0;background:none;padding:10px 0 8px;cursor:pointer;font-size:11px;font-weight:700;color:var(--muted)}
+  .nav button .ico{display:block;font-size:22px;margin-bottom:2px;filter:grayscale(1);opacity:.55}
+  .nav button.on{color:var(--carrot)}
+  .nav button.on .ico{filter:none;opacity:1}
+  .ringbox{display:flex;align-items:center;gap:18px}
+  .ring{position:relative;width:150px;height:150px;flex-shrink:0}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .mid b{font-size:32px;letter-spacing:-1px}
+  .chip{display:inline-block;background:var(--bg);border-radius:10px;padding:8px 12px;margin:3px 4px 3px 0;font-size:13px}
+  .chip b{display:block;font-size:15px}
+  .entry{display:flex;justify-content:space-between;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)}
+  .entry:last-child{border-bottom:0}
+  .del{background:none;border:0;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;padding:2px 0}
+  .score{color:#fff;padding:16px;display:flex;justify-content:space-between;align-items:center}
+  .score .n{font-size:38px;font-weight:800}
+  .pt{font-size:14px;padding:3px 0}
+  .alt{border:2px dashed var(--line);border-radius:12px;padding:10px;margin-top:10px;font-size:14px}
+  .ej{display:flex;align-items:stretch;border:2px solid var(--line);border-radius:14px;margin-bottom:10px;overflow:hidden;background:#fff}
+  .ej.done{background:var(--green-soft);border-color:#bbe7c8}
+  .ej .chk{width:52px;border:0;border-right:2px solid var(--line);background:none;font-size:22px;cursor:pointer;color:#fff}
+  .ej.done .chk{background:var(--green)}
+  .ej .body{flex:1;padding:11px 12px}
+  .ej .body .nm{font-weight:700;font-size:14px}
+  .ej.done .body .nm{text-decoration:line-through;color:var(--muted)}
+  .ej .kg{width:64px;margin:8px 8px 8px 0;padding:8px 6px;border:2px solid var(--line);border-radius:10px;font-size:14px;text-align:right}
+  .err{background:var(--red-soft);color:var(--red);border-radius:12px;padding:12px;font-size:14px;font-weight:600;margin-top:10px}
+  .spin{display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-4px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .gear{background:none;border:0;font-size:22px;cursor:pointer}
+  .overlay{position:fixed;inset:0;background:rgba(28,25,23,.45);z-index:100;display:flex;align-items:flex-end;justify-content:center}
+  .sheet{background:#fff;border-radius:22px 22px 0 0;width:100%;max-width:480px;padding:20px;max-height:88vh;overflow-y:auto}
+  .ok{background:var(--green-soft);color:var(--green);border-radius:12px;padding:12px;font-size:14px;font-weight:700;margin-top:10px}
+  .hide{display:none}
+  .center{text-align:center}
+</style>
+</head>
+<body>
+<div id="app" class="wrap"></div>
+<nav class="nav hide" id="nav">
+  <button data-v="diario"><span class="ico">📔</span>Diario</button>
+  <button data-v="escaner"><span class="ico">🔍</span>Escáner</button>
+  <button data-v="gym"><span class="ico">🏋️</span>Gym</button>
+</nav>
+
+<script>
+
+
+const SB_URL = "https://kepdacdtqffhkhaswqsk.supabase.co";        // 
+const SB_KEY = "sb_publishable_6a4q6zi8Uojdg-GmWCflGg_66FiNDNE";   // 
+
+
+const sb = (SB_URL.startsWith("https") && window.supabase)
+  ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+
+const hoy = () => {
+  const d = new Date(), p = n => String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+};
+const fechaBonita = () => new Date().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"});
+const esc = s => String(s??"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ============ estado ============ */
+let uid = null;
+let perfil = null;        // fila de pastanaga_perfiles
+let entradas = [];        // comidas de hoy
+let vista = "diario";
+let pendiente = null, producto = null, cargando = false, errorMsg = "";
+let diaGym = "A", hechos = {};
+let obTmp = {sexo:"h", ritmo:"400"};
+
+/* ============ rutinas ============ */
+const RUTINAS = {
+  A:{nota:"Full body · descansa 90 seg entre series · deja 2 reps en el tanque",
+    ejercicios:[
+      {n:"Sentadilla (barra o máquina)",s:"3 × 8-10",p:1},
+      {n:"Press banca o máquina de pecho",s:"3 × 8-10",p:1},
+      {n:"Remo con mancuerna o máquina",s:"3 × 10",p:1},
+      {n:"Plancha",s:"3 × 30-45 seg",p:0},
+      {n:"Elevaciones de piernas",s:"3 × 10",p:0}]},
+  B:{nota:"Full body · descansa 90 seg · sube peso cuando completes todas las reps",
+    ejercicios:[
+      {n:"Peso muerto rumano o prensa",s:"3 × 8-10",p:1},
+      {n:"Press militar (hombros)",s:"3 × 8-10",p:1},
+      {n:"Jalón al pecho",s:"3 × 10",p:1},
+      {n:"Rueda abdominal o crunch en polea",s:"3 × 12",p:1},
+      {n:"Plancha lateral",s:"3 × 20-30 seg/lado",p:0}]},
+  C:{nota:"Día opcional · cardio + core + brazos · si solo puedes 2 días, sáltalo sin culpa",
+    ejercicios:[
+      {n:"Piscina o cinta (ritmo suave)",s:"20-30 min",p:0},
+      {n:"Zancadas",s:"3 × 10/pierna",p:1},
+      {n:"Curl de bíceps",s:"3 × 12",p:1},
+      {n:"Extensión de tríceps en polea",s:"3 × 12",p:1},
+      {n:"Plancha",s:"3 × máximo",p:0}]}
+};
+
+/* ============ Gemini ============ */
+const MODELO = "gemini-flash-latest";
+const P_COMIDA = 'Eres un nutricionista. Analiza la comida y estima calorías y macros de forma realista para raciones típicas en España. Responde SOLO con JSON válido, sin markdown ni backticks ni texto extra, estructura exacta: {"alimentos":[{"nombre":"","kcal":0,"proteina_g":0,"carbs_g":0,"grasa_g":0}],"total_kcal":0,"comentario":"máx 15 palabras, tono cercano"}. Si no hay comida reconocible: {"alimentos":[],"total_kcal":0,"comentario":"No veo comida ahí"}';
+const P_PRODUCTO = 'Eres un nutricionista que evalúa productos de supermercado al estilo de la app Yuka. Analiza la foto del producto (envase, ingredientes o tabla nutricional). Valora azúcares, grasas saturadas, sal, aditivos, ultraprocesado y calidad de ingredientes. Responde SOLO con JSON válido sin markdown: {"nombre":"","puntuacion":0,"nivel":"malo|mediocre|bueno|excelente","positivos":["hasta 3, cortos"],"negativos":["hasta 3, cortos"],"alternativa":"alternativa más sana de súper español o vacío","kcal_100g":0}. Puntuación 0-100: 0-24 malo, 25-49 mediocre, 50-74 bueno, 75-100 excelente. Si no reconoces producto: {"nombre":"","puntuacion":-1,"nivel":"","positivos":[],"negativos":[],"alternativa":"","kcal_100g":0}';
+
+async function gemini(parts){
+  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+MODELO+":generateContent?key="+encodeURIComponent(perfil.apikey),{
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({contents:[{parts}], generationConfig:{temperature:0.2}})
+  });
+  if(!r.ok){
+    if(r.status===400||r.status===403) throw new Error("Clave de Gemini no válida. Revísala en Ajustes ⚙️");
+    if(r.status===429) throw new Error("Demasiadas peticiones seguidas, espera un momento");
+    throw new Error("Error del servidor de Gemini ("+r.status+")");
+  }
+  const data = await r.json();
+  const texto = (data.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join("");
+  return JSON.parse(texto.replace(/```json|```/g,"").trim());
+}
+
+function redimensionar(file){
+  return new Promise((res,rej)=>{
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      const max=1024; let w=img.width, h=img.height;
+      if(w>max||h>max){const s=max/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s);}
+      const c=document.createElement("canvas"); c.width=w; c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL("image/jpeg",.8).split(",")[1]);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url); rej(new Error("No se pudo leer la imagen"));};
+    img.src=url;
+  });
+}
+
+/* ============ Mifflin-St Jeor ============ */
+function calcularObjetivo(d){
+  const tmb = 10*d.peso + 6.25*d.altura - 5*d.edad + (d.sexo==="h" ? 5 : -161);
+  return Math.round((tmb * parseFloat(d.actividad) - parseInt(d.ritmo)) / 10) * 10;
+}
+
+/* ============ datos (Supabase) ============ */
+async function cargarTodo(){
+  const {data:p} = await sb.from("pastanaga_perfiles").select().eq("user_id",uid).maybeSingle();
+  perfil = p;
+  if(!perfil) return;
+  const {data:c} = await sb.from("pastanaga_comidas").select().eq("user_id",uid).eq("fecha",hoy()).order("id");
+  entradas = c || [];
+  const {data:g} = await sb.from("pastanaga_gym").select().eq("user_id",uid).eq("fecha",hoy()).maybeSingle();
+  if(g){ diaGym = g.dia; hechos = g.hechos || {}; }
+}
+async function guardarGymHoy(){
+  const {error} = await sb.from("pastanaga_gym").upsert({user_id:uid, fecha:hoy(), dia:diaGym, hechos});
+  if(error){ errorMsg = "No se guardó el gym: "+error.message; }
+}
+async function guardarPesos(){
+  const {error} = await sb.from("pastanaga_perfiles").update({pesos:perfil.pesos}).eq("user_id",uid);
+  if(error){ errorMsg = "No se guardaron los pesos: "+error.message; }
+}
+
+/* ============ render ============ */
+const app = document.getElementById("app");
+const nav = document.getElementById("nav");
+nav.querySelectorAll("button").forEach(b=>b.onclick=()=>{vista=b.dataset.v; errorMsg=""; render();});
+
+function render(){
+  if(!sb){ renderSinConfig(); return; }
+  if(!uid){ renderLogin(); return; }
+  if(!perfil){ renderOnboarding(); return; }
+  nav.classList.remove("hide");
+  nav.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===vista));
+  if(vista==="diario") renderDiario();
+  else if(vista==="escaner") renderEscaner();
+  else renderGym();
+}
+
+function renderSinConfig(){
+  app.innerHTML = `<div class="card" style="margin-top:40px">
+    <h2>⚙️ Falta configurar</h2>
+    <p class="muted" style="margin-top:8px">Abre el index.html y pega arriba del todo tu SUPABASE_URL y tu SUPABASE_ANON_KEY (Supabase → Settings → API, los mismos de Garabato). Dos líneas y listo.</p>
+  </div>`;
+}
+
+/* ---------- login ---------- */
+function renderLogin(){
+  nav.classList.add("hide");
+  app.innerHTML = `
+  <div class="center" style="margin:40px 0 18px">
+    <div style="font-size:54px">🥕</div>
+    <h1>Pastanaga</h1>
+    <p class="muted">Entra con tu cuenta (la misma de Garabato)</p>
+  </div>
+  <div class="card">
+    <label>Email</label>
+    <input type="email" id="lg-email" placeholder="tu@email.com" autocomplete="email">
+    <label>Contraseña</label>
+    <input type="password" id="lg-pass" autocomplete="current-password">
+    <div id="lg-err"></div>
+    <div style="margin-top:16px"><button class="btn" id="lg-go">Entrar</button></div>
+    <div style="margin-top:8px"><button class="btn sec sm" id="lg-nuevo">Crear cuenta nueva</button></div>
+  </div>`;
+  const err = m => document.getElementById("lg-err").innerHTML = '<div class="err">⚠ '+esc(m)+'</div>';
+  document.getElementById("lg-go").onclick = async ()=>{
+    const email = document.getElementById("lg-email").value.trim();
+    const pass = document.getElementById("lg-pass").value;
+    if(!email||!pass) return err("Pon email y contraseña");
+    const b=document.getElementById("lg-go"); b.disabled=true; b.textContent="Entrando…";
+    const {data, error} = await sb.auth.signInWithPassword({email, password:pass});
+    if(error){ b.disabled=false; b.textContent="Entrar"; return err(error.message.includes("Invalid")?"Email o contraseña incorrectos":error.message); }
+    uid = data.user.id;
+    await cargarTodo(); render();
+  };
+  document.getElementById("lg-nuevo").onclick = async ()=>{
+    const email = document.getElementById("lg-email").value.trim();
+    const pass = document.getElementById("lg-pass").value;
+    if(!email||!pass) return err("Escribe arriba el email y la contraseña que quieres, y vuelve a pulsar");
+    if(pass.length<6) return err("La contraseña necesita mínimo 6 caracteres");
+    const {data, error} = await sb.auth.signUp({email, password:pass});
+    if(error) return err(error.message);
+    if(data.session){ uid = data.user.id; await cargarTodo(); render(); }
+    else err("Cuenta creada. Revisa tu email para confirmarla y luego entra.");
+  };
+}
+
+/* ---------- onboarding ---------- */
+function renderOnboarding(){
+  nav.classList.add("hide");
+  app.innerHTML = `
+  <div class="center" style="margin:26px 0 18px">
+    <div style="font-size:54px">🥕</div>
+    <h1>Casi listo</h1>
+    <p class="muted">Cuéntame cuatro cosas y te calculo tu objetivo de calorías.</p>
+  </div>
+  <div class="card">
+    <label>¿Cómo te llamas?</label>
+    <input type="text" id="ob-nombre" placeholder="Tu nombre">
+    <label>Sexo</label>
+    <div class="seg" id="ob-sexo">
+      <button data-x="h" class="on">Hombre</button>
+      <button data-x="m">Mujer</button>
+    </div>
+    <div class="row">
+      <div><label>Edad</label><input type="number" id="ob-edad" placeholder="30"></div>
+      <div><label>Altura (cm)</label><input type="number" id="ob-altura" placeholder="175"></div>
+      <div><label>Peso (kg)</label><input type="number" id="ob-peso" placeholder="80" step="0.1"></div>
+    </div>
+    <label>Tu día a día (sin contar el gym)</label>
+    <select id="ob-act">
+      <option value="1.2">Sentado casi todo el día</option>
+      <option value="1.375" selected>Oficina pero me muevo algo</option>
+      <option value="1.55">Bastante activo / trabajo de pie</option>
+      <option value="1.725">Muy activo físicamente</option>
+    </select>
+    <label>Ritmo para perder barriga</label>
+    <div class="seg" id="ob-ritmo">
+      <button data-x="300">Tranquilo<br><small>-300 kcal</small></button>
+      <button data-x="400" class="on">Medio<br><small>-400 kcal</small></button>
+      <button data-x="500">A tope<br><small>-500 kcal</small></button>
+    </div>
+    <label>Clave de API de Gemini (para las fotos)</label>
+    <input type="password" id="ob-key" placeholder="AIza...">
+    <p class="muted" style="margin-top:5px">La de Sofi (archivo .env) o gratis en aistudio.google.com. Se guarda en tu perfil.</p>
+    <div id="ob-err"></div>
+    <div style="margin-top:16px"><button class="btn" id="ob-go">Calcular mi objetivo →</button></div>
+  </div>`;
+  document.querySelectorAll("#ob-sexo button").forEach(b=>b.onclick=()=>{obTmp.sexo=b.dataset.x;document.querySelectorAll("#ob-sexo button").forEach(x=>x.classList.toggle("on",x===b));});
+  document.querySelectorAll("#ob-ritmo button").forEach(b=>b.onclick=()=>{obTmp.ritmo=b.dataset.x;document.querySelectorAll("#ob-ritmo button").forEach(x=>x.classList.toggle("on",x===b));});
+  document.getElementById("ob-go").onclick = async ()=>{
+    const d = {
+      user_id: uid,
+      nombre: document.getElementById("ob-nombre").value.trim(),
+      sexo: obTmp.sexo,
+      edad: parseInt(document.getElementById("ob-edad").value),
+      altura: parseFloat(document.getElementById("ob-altura").value),
+      peso: parseFloat(document.getElementById("ob-peso").value),
+      actividad: document.getElementById("ob-act").value,
+      ritmo: obTmp.ritmo,
+      apikey: document.getElementById("ob-key").value.trim(),
+      pesos: {},
+    };
+    const e = document.getElementById("ob-err");
+    if(!d.nombre || !d.edad || !d.altura || !d.peso){ e.innerHTML='<div class="err">Faltan datos: nombre, edad, altura y peso</div>'; return; }
+    if(d.edad<14||d.edad>100||d.altura<120||d.altura>230||d.peso<35||d.peso>250){ e.innerHTML='<div class="err">Revisa los datos, algo no cuadra</div>'; return; }
+    if(!d.apikey){ e.innerHTML='<div class="err">Falta la clave de Gemini (sin ella no hay fotos)</div>'; return; }
+    d.objetivo = calcularObjetivo(d);
+    const {error} = await sb.from("pastanaga_perfiles").insert(d);
+    if(error){ e.innerHTML='<div class="err">Error guardando: '+esc(error.message)+'</div>'; return; }
+    perfil = d;
+    app.innerHTML = `
+    <div class="center" style="margin-top:50px">
+      <div style="font-size:54px">🎯</div>
+      <h1>${esc(d.nombre)}, tu número es</h1>
+      <p style="font-size:56px;font-weight:800;color:var(--carrot);letter-spacing:-2px">${d.objetivo}</p>
+      <p class="muted" style="max-width:300px;margin:0 auto">kcal al día. Comiendo esto pierdes grasa de forma sostenida sin pasar hambre. La app lleva la cuenta, tú solo haz fotos.</p>
+      <div style="margin-top:24px"><button class="btn green" id="ob-fin">Empezar 🥕</button></div>
+    </div>`;
+    document.getElementById("ob-fin").onclick=()=>{vista="diario"; render();};
+  };
+}
+
+/* ---------- diario ---------- */
+function renderDiario(){
+  const total = entradas.reduce((s,x)=>s+x.kcal,0);
+  const tp = Math.round(entradas.reduce((s,x)=>s+(x.proteina||0),0));
+  const tc = Math.round(entradas.reduce((s,x)=>s+(x.carbs||0),0));
+  const tg = Math.round(entradas.reduce((s,x)=>s+(x.grasa||0),0));
+  const rest = perfil.objetivo - total;
+  const pct = Math.min(1, total/perfil.objetivo);
+  const pasado = total > perfil.objetivo;
+  const R=62, C=2*Math.PI*R;
+
+  app.innerHTML = `
+  <div class="topbar">
+    <div><h1>Hola, ${esc(perfil.nombre)} 🥕</h1><p class="muted" style="text-transform:capitalize">${fechaBonita()}</p></div>
+    <button class="gear" id="btn-ajustes">⚙️</button>
+  </div>
+  <div class="card">
+    <div class="ringbox">
+      <div class="ring">
+        <svg width="150" height="150">
+          <circle cx="75" cy="75" r="${R}" fill="none" stroke="var(--line)" stroke-width="13"/>
+          <circle cx="75" cy="75" r="${R}" fill="none" stroke="${pasado?"var(--red)":"var(--green)"}" stroke-width="13"
+            stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-pct)}" style="transition:stroke-dashoffset .5s"/>
+        </svg>
+        <div class="mid"><b>${total}</b><span class="muted">de ${perfil.objetivo}</span></div>
+      </div>
+      <div>
+        <p style="font-weight:800;font-size:17px;color:${pasado?"var(--red)":"var(--ink)"}">
+          ${pasado ? "Te has pasado "+Math.abs(rest)+" kcal" : "Te quedan "+rest+" kcal"}</p>
+        <div style="margin-top:8px">
+          <span class="chip"><b>${tp}g</b>proteína</span><span class="chip"><b>${tc}g</b>carbos</span><span class="chip"><b>${tg}g</b>grasa</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <input type="file" accept="image/*" capture="environment" id="foto" class="hide">
+    <button class="btn" id="btn-foto" ${cargando?"disabled":""}>${cargando?'<span class="spin"></span>Analizando…':"📸 Foto a la comida"}</button>
+    <div style="height:8px"></div>
+    <button class="btn sec sm" id="btn-txt">✏️ Escribir lo que comí</button>
+    <div id="txtbox" class="hide" style="margin-top:10px">
+      <div class="row">
+        <input type="text" id="txt-comida" placeholder="ej: bocadillo de tortilla y una caña">
+        <button class="btn sm" style="flex:0 0 54px" id="btn-txt-go">→</button>
+      </div>
+    </div>
+    <div>${errorMsg?'<div class="err">⚠ '+esc(errorMsg)+'</div>':""}</div>
+  </div>
+  ${pendiente ? `
+  <div class="card" style="border:2px solid var(--carrot);background:var(--carrot-soft)">
+    <h2>He detectado esto:</h2>
+    ${pendiente.alimentos.map(a=>`<div class="entry"><span>${esc(a.nombre)}</span><b>${a.kcal} kcal</b></div>`).join("")}
+    <div class="entry" style="font-weight:800"><span>TOTAL</span><span>${pendiente.total_kcal} kcal</span></div>
+    ${pendiente.comentario?'<p class="muted" style="font-style:italic;margin-top:6px">"'+esc(pendiente.comentario)+'"</p>':""}
+    <div class="row" style="margin-top:12px">
+      <button class="btn green sm" id="btn-add">✓ Añadir</button>
+      <button class="btn sec sm" id="btn-no">Descartar</button>
+    </div>
+  </div>` : ""}
+  <div class="card">
+    <h2>Diario de hoy</h2>
+    ${entradas.length===0 ? '<p class="muted" style="margin-top:8px">Aún nada. Hazle una foto a tu próxima comida y verás la magia.</p>'
+      : entradas.map(e=>`
+      <div class="entry">
+        <div style="flex:1;padding-right:10px">
+          <p class="muted">${esc(e.hora)}</p>
+          <p style="font-weight:700;font-size:14px">${(e.alimentos||[]).map(a=>esc(a.nombre)).join(", ")}</p>
+        </div>
+        <div style="text-align:right">
+          <p style="font-weight:800">${e.kcal}</p>
+          <button class="del" data-id="${e.id}">borrar</button>
+        </div>
+      </div>`).join("")}
+  </div>`;
+
+  document.getElementById("btn-ajustes").onclick = renderAjustes;
+  const inputFoto = document.getElementById("foto");
+  document.getElementById("btn-foto").onclick = ()=>inputFoto.click();
+  inputFoto.onchange = async e => {
+    const f = e.target.files[0]; if(!f) return; e.target.value="";
+    let b64=null; try{ b64 = await redimensionar(f); }catch(x){}
+    await analizar([{inline_data:{mime_type:"image/jpeg",data:b64}},{text:P_COMIDA}], "comida");
+  };
+  document.getElementById("btn-txt").onclick = ()=>document.getElementById("txtbox").classList.toggle("hide");
+  document.getElementById("btn-txt-go").onclick = async ()=>{
+    const t = document.getElementById("txt-comida").value.trim(); if(!t) return;
+    await analizar([{text:'Comida descrita por el usuario: "'+t+'"\n\n'+P_COMIDA}], "comida");
+  };
+  if(pendiente){
+    document.getElementById("btn-add").onclick = async ()=>{
+      const fila = {
+        user_id: uid, fecha: hoy(),
+        hora: new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}),
+        alimentos: pendiente.alimentos,
+        kcal: pendiente.total_kcal,
+        proteina: pendiente.alimentos.reduce((s,a)=>s+(a.proteina_g||0),0),
+        carbs: pendiente.alimentos.reduce((s,a)=>s+(a.carbs_g||0),0),
+        grasa: pendiente.alimentos.reduce((s,a)=>s+(a.grasa_g||0),0),
+      };
+      const {data, error} = await sb.from("pastanaga_comidas").insert(fila).select().single();
+      if(error){ errorMsg = "No se guardó: "+error.message; render(); return; }
+      entradas.push(data); pendiente=null; render();
+    };
+    document.getElementById("btn-no").onclick = ()=>{pendiente=null; render();};
+  }
+  document.querySelectorAll(".del").forEach(b=>b.onclick=async ()=>{
+    const id = parseInt(b.dataset.id);
+    const {error} = await sb.from("pastanaga_comidas").delete().eq("id",id);
+    if(!error) entradas = entradas.filter(x=>x.id!==id);
+    else errorMsg = "No se pudo borrar: "+error.message;
+    render();
+  });
+}
+
+async function analizar(parts, tipo){
+  errorMsg=""; cargando=true; render();
+  try{
+    if(parts[0]?.inline_data && !parts[0].inline_data.data) throw new Error("No se pudo leer la imagen");
+    const r = await gemini(parts);
+    if(tipo==="comida"){
+      if(!r.alimentos?.length) errorMsg = r.comentario || "No he reconocido comida";
+      else pendiente = r;
+    }else{
+      if(r.puntuacion<0 || !r.nombre) errorMsg = "No he reconocido el producto. Enfoca el envase o la etiqueta.";
+      else producto = r;
+    }
+  }catch(e){ errorMsg = e.message || "Error analizando. Prueba otra vez."; }
+  cargando=false; render();
+}
+
+/* ---------- escáner ---------- */
+function renderEscaner(){
+  const NIV = {excelente:["var(--green)","Excelente"],bueno:["var(--lime)","Bueno"],mediocre:["var(--orange)","Mediocre"],malo:["var(--red)","Malo"]};
+  const nv = producto ? (NIV[producto.nivel]||NIV.mediocre) : null;
+  app.innerHTML = `
+  <div class="topbar"><h1>Escáner 🔍</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
+  <div class="card">
+    <p class="muted" style="margin-bottom:12px">Hazle foto a un producto del súper — mejor a la etiqueta de ingredientes o la tabla nutricional — y te digo si merece la pena o es un ultraprocesado disfrazado.</p>
+    <input type="file" accept="image/*" capture="environment" id="fprod" class="hide">
+    <button class="btn" id="btn-prod" ${cargando?"disabled":""}>${cargando?'<span class="spin"></span>Analizando…':"🔍 Escanear producto"}</button>
+    <div>${errorMsg?'<div class="err">⚠ '+esc(errorMsg)+'</div>':""}</div>
+  </div>
+  ${producto&&nv ? `
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="score" style="background:${nv[0]}">
+      <div><p style="font-weight:800;font-size:18px">${esc(producto.nombre)}</p><p style="opacity:.9;font-size:13px;text-transform:uppercase;font-weight:700">${nv[1]}</p></div>
+      <div class="n">${producto.puntuacion}<span style="font-size:16px;opacity:.75">/100</span></div>
+    </div>
+    <div style="padding:16px">
+      ${producto.kcal_100g>0?'<p class="muted" style="margin-bottom:8px">~'+producto.kcal_100g+' kcal / 100g</p>':""}
+      ${(producto.positivos||[]).map(p=>'<p class="pt"><b style="color:var(--green)">✓</b> '+esc(p)+'</p>').join("")}
+      ${(producto.negativos||[]).map(p=>'<p class="pt"><b style="color:var(--red)">✗</b> '+esc(p)+'</p>').join("")}
+      ${producto.alternativa?'<div class="alt"><b>💡 Alternativa mejor</b><br>'+esc(producto.alternativa)+'</div>':""}
+      <div style="margin-top:14px"><button class="btn sec sm" id="btn-otro">Escanear otro</button></div>
+    </div>
+  </div>`:""}`;
+  document.getElementById("btn-ajustes").onclick = renderAjustes;
+  const fi = document.getElementById("fprod");
+  document.getElementById("btn-prod").onclick = ()=>fi.click();
+  fi.onchange = async e => {
+    const f = e.target.files[0]; if(!f) return; e.target.value=""; producto=null;
+    let b64=null; try{ b64 = await redimensionar(f); }catch(x){}
+    await analizar([{inline_data:{mime_type:"image/jpeg",data:b64}},{text:P_PRODUCTO}], "producto");
+  };
+  const bo = document.getElementById("btn-otro");
+  if(bo) bo.onclick = ()=>{producto=null; render();};
+}
+
+/* ---------- gym ---------- */
+function renderGym(){
+  const rut = RUTINAS[diaGym];
+  const done = rut.ejercicios.filter((_,i)=>hechos[diaGym+"-"+i]).length;
+  app.innerHTML = `
+  <div class="topbar"><h1>Gym 🏋️</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
+  <div class="seg" style="margin-bottom:12px">
+    ${["A","B","C"].map(d=>`<button data-d="${d}" class="${diaGym===d?"on":""}">Día ${d}${d==="C"?'<br><small>opcional</small>':""}</button>`).join("")}
+  </div>
+  <p class="muted" style="margin-bottom:12px">${rut.nota}</p>
+  ${errorMsg?'<div class="err" style="margin-bottom:10px">⚠ '+esc(errorMsg)+'</div>':""}
+  ${rut.ejercicios.map((ej,i)=>{
+    const k=diaGym+"-"+i, h=!!hechos[k];
+    return `<div class="ej ${h?"done":""}">
+      <button class="chk" data-i="${i}">${h?"✓":""}</button>
+      <div class="body"><p class="nm">${ej.n}</p><p class="muted">${ej.s}</p></div>
+      ${ej.p?'<input class="kg" type="number" inputmode="decimal" placeholder="kg" data-n="'+esc(ej.n)+'" value="'+esc((perfil.pesos||{})[ej.n]||"")+'">':""}
+    </div>`;
+  }).join("")}
+  <p class="muted" style="margin-top:4px">${done}/${rut.ejercicios.length} ejercicios · el peso que apuntes se guarda para la próxima sesión</p>
+  ${done===rut.ejercicios.length?'<div class="ok">💪 Sesión completada, máquina</div>':""}`;
+
+  document.getElementById("btn-ajustes").onclick = renderAjustes;
+  document.querySelectorAll(".seg button[data-d]").forEach(b=>b.onclick=()=>{diaGym=b.dataset.d; guardarGymHoy(); render();});
+  document.querySelectorAll(".chk").forEach(b=>b.onclick=()=>{
+    const k=diaGym+"-"+b.dataset.i; hechos[k]=!hechos[k]; guardarGymHoy(); render();
+  });
+  document.querySelectorAll(".kg").forEach(inp=>{
+    inp.onchange=()=>{ perfil.pesos = perfil.pesos||{}; perfil.pesos[inp.dataset.n]=inp.value; guardarPesos(); };
+  });
+}
+
+/* ---------- ajustes ---------- */
+function renderAjustes(){
+  const ov = document.createElement("div");
+  ov.className="overlay";
+  ov.innerHTML = `
+  <div class="sheet">
+    <h2 style="margin-bottom:6px">Ajustes ⚙️</h2>
+    <div class="row">
+      <div><label>Peso actual (kg)</label><input type="number" id="aj-peso" step="0.1" value="${perfil.peso}"></div>
+      <div><label>Objetivo (kcal)</label><input type="number" id="aj-obj" value="${perfil.objetivo}"></div>
+    </div>
+    <p class="muted" style="margin-top:6px">Si cambias el peso, dale a recalcular y te ajusto el objetivo.</p>
+    <div style="margin-top:10px"><button class="btn sec sm" id="aj-recalc">🔄 Recalcular objetivo con mi peso nuevo</button></div>
+    <label>Clave de API de Gemini</label>
+    <input type="password" id="aj-key" value="${esc(perfil.apikey||"")}">
+    <div style="margin-top:16px" class="row">
+      <button class="btn sm" id="aj-ok">Guardar</button>
+      <button class="btn sec sm" id="aj-x">Cerrar</button>
+    </div>
+    <div style="margin-top:8px"><button class="btn sec sm" id="aj-salir" style="color:var(--red);border-color:var(--red)">Cerrar sesión</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.onclick = e => { if(e.target===ov) ov.remove(); };
+  ov.querySelector("#aj-recalc").onclick=()=>{
+    const p = parseFloat(ov.querySelector("#aj-peso").value)||perfil.peso;
+    ov.querySelector("#aj-obj").value = calcularObjetivo({...perfil, peso:p});
+  };
+  ov.querySelector("#aj-ok").onclick=async ()=>{
+    const cambios = {
+      peso: parseFloat(ov.querySelector("#aj-peso").value)||perfil.peso,
+      objetivo: parseInt(ov.querySelector("#aj-obj").value)||perfil.objetivo,
+      apikey: ov.querySelector("#aj-key").value.trim()||perfil.apikey,
+    };
+    const {error} = await sb.from("pastanaga_perfiles").update(cambios).eq("user_id",uid);
+    if(error){ alert("Error guardando: "+error.message); return; }
+    Object.assign(perfil, cambios);
+    ov.remove(); render();
+  };
+  ov.querySelector("#aj-x").onclick=()=>ov.remove();
+  ov.querySelector("#aj-salir").onclick=async ()=>{
+    await sb.auth.signOut();
+    uid=null; perfil=null; entradas=[]; ov.remove(); render();
+  };
+}
+
+/* ---------- arranque ---------- */
+(async function init(){
+  if(!sb){ render(); return; }
+  const {data:{session}} = await sb.auth.getSession();
+  if(session){ uid = session.user.id; await cargarTodo(); }
+  render();
+})();
+</script>
+</body>
+</html>
