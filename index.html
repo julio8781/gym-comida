@@ -490,7 +490,7 @@ function renderEscaner(){
   app.innerHTML = `
   <div class="topbar"><h1>Escáner 🔍</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
   <div class="card">
-    <p class="muted" style="margin-bottom:12px">Hazle foto a un producto del súper — mejor a la etiqueta de ingredientes o la tabla nutricional — y te digo si merece la pena o es un ultraprocesado disfrazado.</p>
+    <p class="muted" style="margin-bottom:12px">Hazle foto a un producto del súper — mejor a la etiqueta de ingredientes o la tabla nutricional — y te digo si merece la pena o es un ultraprocesado disfrazado :).</p>
     <input type="file" accept="image/*" capture="environment" id="fprod" class="hide">
     <button class="btn" id="btn-prod" ${cargando?"disabled":""}>${cargando?'<span class="spin"></span>Analizando…':"🔍 Escanear producto"}</button>
     <div>${errorMsg?'<div class="err">⚠ '+esc(errorMsg)+'</div>':""}</div>
