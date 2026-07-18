@@ -12,7 +12,7 @@
     --bg:#faf7f2; --card:#ffffff; --ink:#1c1917; --muted:#78716c;
     --carrot:#f97316; --carrot-soft:#fff1e6; --green:#16a34a; --green-soft:#ecfdf3;
     --lime:#65a30d; --orange:#ea8b0c; --red:#dc2626; --red-soft:#fef2f2;
-    --line:#eceae6; --shadow:0 2px 10px rgba(28,25,23,.06);
+    --gold:#d97706; --line:#eceae6; --shadow:0 2px 10px rgba(28,25,23,.06);
   }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%}
@@ -55,17 +55,18 @@
     display:flex;max-width:480px;margin:0 auto;
     padding-bottom:env(safe-area-inset-bottom);
   }
-  .nav button{flex:1;border:0;background:none;padding:10px 0 8px;cursor:pointer;font-size:11px;font-weight:700;color:var(--muted)}
-  .nav button .ico{display:block;font-size:22px;margin-bottom:2px;filter:grayscale(1);opacity:.55}
+  .nav button{flex:1;border:0;background:none;padding:10px 0 8px;cursor:pointer;font-size:10px;font-weight:700;color:var(--muted)}
+  .nav button .ico{display:block;font-size:21px;margin-bottom:2px;filter:grayscale(1);opacity:.55}
   .nav button.on{color:var(--carrot)}
   .nav button.on .ico{filter:none;opacity:1}
-  .ringbox{display:flex;align-items:center;gap:18px}
-  .ring{position:relative;width:150px;height:150px;flex-shrink:0}
+  .ringbox{display:flex;align-items:center;gap:16px}
+  .ring{position:relative;width:140px;height:140px;flex-shrink:0}
   .ring svg{transform:rotate(-90deg)}
   .ring .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-  .ring .mid b{font-size:32px;letter-spacing:-1px}
-  .chip{display:inline-block;background:var(--bg);border-radius:10px;padding:8px 12px;margin:3px 4px 3px 0;font-size:13px}
+  .ring .mid b{font-size:30px;letter-spacing:-1px}
+  .chip{display:inline-block;background:var(--bg);border-radius:10px;padding:7px 11px;margin:3px 4px 3px 0;font-size:13px}
   .chip b{display:block;font-size:15px}
+  .chip.prot-ok{background:var(--green-soft)} .chip.prot-ok b{color:var(--green)}
   .entry{display:flex;justify-content:space-between;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)}
   .entry:last-child{border-bottom:0}
   .del{background:none;border:0;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;padding:2px 0}
@@ -91,6 +92,16 @@
   .ok{background:var(--green-soft);color:var(--green);border-radius:12px;padding:12px;font-size:14px;font-weight:700;margin-top:10px}
   .hide{display:none}
   .center{text-align:center}
+  .fnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .fnav button{border:2px solid var(--line);background:#fff;border-radius:10px;width:38px;height:38px;font-size:17px;font-weight:800;cursor:pointer;color:var(--ink)}
+  .fnav button:disabled{opacity:.25}
+  .fnav .f{font-weight:800;font-size:15px;text-transform:capitalize}
+  .pcard{border-radius:18px;padding:16px;margin-bottom:12px;background:#fff;box-shadow:var(--shadow);display:flex;align-items:center;gap:14px}
+  .pcard.lider{border:2px solid var(--gold);background:#fffbeb}
+  .pcard .medal{font-size:34px}
+  .pcard .pts{font-size:26px;font-weight:800;margin-left:auto;text-align:right}
+  .pcard .pts small{display:block;font-size:11px;color:var(--muted);font-weight:600}
+  .stat{display:inline-block;font-size:12px;color:var(--muted);margin-right:10px;font-weight:600}
 </style>
 </head>
 <body>
@@ -99,33 +110,34 @@
   <button data-v="diario"><span class="ico">📔</span>Diario</button>
   <button data-v="escaner"><span class="ico">🔍</span>Escáner</button>
   <button data-v="gym"><span class="ico">🏋️</span>Gym</button>
+  <button data-v="puntos"><span class="ico">🏆</span>Puntos</button>
 </nav>
 
 <script>
-
-
 const SB_URL = "https://kepdacdtqffhkhaswqsk.supabase.co";        // 
-const SB_KEY = "sb_publishable_6a4q6zi8Uojdg-GmWCflGg_66FiNDNE";   // 
-
+const SB_KEY = "sb_publishable_6a4q6zi8Uojdg-GmWCflGg_66FiNDNE";
 
 const sb = (SB_URL.startsWith("https") && window.supabase)
   ? window.supabase.createClient(SB_URL, SB_KEY) : null;
 
-const hoy = () => {
-  const d = new Date(), p = n => String(n).padStart(2,"0");
-  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
-};
-const fechaBonita = () => new Date().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"});
+const pad = n => String(n).padStart(2,"0");
+const hoy = () => { const d = new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); };
+const addDias = (f,n) => { const d = new Date(f+"T12:00:00"); d.setDate(d.getDate()+n); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); };
+const fechaLarga = f => new Date(f+"T12:00:00").toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"});
 const esc = s => String(s??"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const protObjetivo = p => Math.round(p.peso * 1.6);   // g de proteína al día (1.6 g/kg, ideal en déficit)
 
 /* ============ estado ============ */
 let uid = null;
-let perfil = null;        // fila de pastanaga_perfiles
-let entradas = [];        // comidas de hoy
+let perfil = null, parejaPerfil = null;
+let verUser = null;            // de quién estamos viendo el diario
+let fechaSel = hoy();          // qué día estamos viendo
+let entradas = [];
 let vista = "diario";
 let pendiente = null, producto = null, cargando = false, errorMsg = "";
 let diaGym = "A", hechos = {};
 let obTmp = {sexo:"h", ritmo:"400"};
+let puntosCache = null;
 
 /* ============ rutinas ============ */
 const RUTINAS = {
@@ -172,16 +184,17 @@ async function gemini(parts){
   return JSON.parse(texto.replace(/```json|```/g,"").trim());
 }
 
+/* compresión en cliente: máx 896px + JPEG 72% → menos tokens a Gemini */
 function redimensionar(file){
   return new Promise((res,rej)=>{
     const img = new Image(), url = URL.createObjectURL(file);
     img.onload = ()=>{
-      const max=1024; let w=img.width, h=img.height;
+      const max=896; let w=img.width, h=img.height;
       if(w>max||h>max){const s=max/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s);}
       const c=document.createElement("canvas"); c.width=w; c.height=h;
       c.getContext("2d").drawImage(img,0,0,w,h);
       URL.revokeObjectURL(url);
-      res(c.toDataURL("image/jpeg",.8).split(",")[1]);
+      res(c.toDataURL("image/jpeg",.72).split(",")[1]);
     };
     img.onerror=()=>{URL.revokeObjectURL(url); rej(new Error("No se pudo leer la imagen"));};
     img.src=url;
@@ -194,13 +207,19 @@ function calcularObjetivo(d){
   return Math.round((tmb * parseFloat(d.actividad) - parseInt(d.ritmo)) / 10) * 10;
 }
 
-/* ============ datos (Supabase) ============ */
-async function cargarTodo(){
-  const {data:p} = await sb.from("pastanaga_perfiles").select().eq("user_id",uid).maybeSingle();
-  perfil = p;
-  if(!perfil) return;
-  const {data:c} = await sb.from("pastanaga_comidas").select().eq("user_id",uid).eq("fecha",hoy()).order("id");
+/* ============ datos ============ */
+async function cargarPerfiles(){
+  const {data:ps} = await sb.from("pastanaga_perfiles").select();
+  perfil = (ps||[]).find(p=>p.user_id===uid) || null;
+  parejaPerfil = (ps||[]).find(p=>p.user_id!==uid) || null;
+  verUser = uid;
+}
+async function cargarDia(){
+  const {data:c} = await sb.from("pastanaga_comidas").select()
+    .eq("user_id",verUser).eq("fecha",fechaSel).order("id");
   entradas = c || [];
+}
+async function cargarGymHoy(){
   const {data:g} = await sb.from("pastanaga_gym").select().eq("user_id",uid).eq("fecha",hoy()).maybeSingle();
   if(g){ diaGym = g.dia; hechos = g.hechos || {}; }
 }
@@ -216,7 +235,11 @@ async function guardarPesos(){
 /* ============ render ============ */
 const app = document.getElementById("app");
 const nav = document.getElementById("nav");
-nav.querySelectorAll("button").forEach(b=>b.onclick=()=>{vista=b.dataset.v; errorMsg=""; render();});
+nav.querySelectorAll("button").forEach(b=>b.onclick=async ()=>{
+  vista=b.dataset.v; errorMsg="";
+  if(vista==="diario"){ await cargarDia(); }
+  render();
+});
 
 function render(){
   if(!sb){ renderSinConfig(); return; }
@@ -226,13 +249,14 @@ function render(){
   nav.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===vista));
   if(vista==="diario") renderDiario();
   else if(vista==="escaner") renderEscaner();
-  else renderGym();
+  else if(vista==="gym") renderGym();
+  else renderPuntos();
 }
 
 function renderSinConfig(){
   app.innerHTML = `<div class="card" style="margin-top:40px">
     <h2>⚙️ Falta configurar</h2>
-    <p class="muted" style="margin-top:8px">Abre el index.html y pega arriba del todo tu SUPABASE_URL y tu SUPABASE_ANON_KEY (Supabase → Settings → API, los mismos de Garabato). Dos líneas y listo.</p>
+    <p class="muted" style="margin-top:8px">Abre el index.html y pega arriba del todo tu SUPABASE_URL y tu SUPABASE_ANON_KEY.</p>
   </div>`;
 }
 
@@ -263,7 +287,8 @@ function renderLogin(){
     const {data, error} = await sb.auth.signInWithPassword({email, password:pass});
     if(error){ b.disabled=false; b.textContent="Entrar"; return err(error.message.includes("Invalid")?"Email o contraseña incorrectos":error.message); }
     uid = data.user.id;
-    await cargarTodo(); render();
+    await cargarPerfiles(); if(perfil){ await cargarDia(); await cargarGymHoy(); }
+    render();
   };
   document.getElementById("lg-nuevo").onclick = async ()=>{
     const email = document.getElementById("lg-email").value.trim();
@@ -272,7 +297,7 @@ function renderLogin(){
     if(pass.length<6) return err("La contraseña necesita mínimo 6 caracteres");
     const {data, error} = await sb.auth.signUp({email, password:pass});
     if(error) return err(error.message);
-    if(data.session){ uid = data.user.id; await cargarTodo(); render(); }
+    if(data.session){ uid = data.user.id; await cargarPerfiles(); render(); }
     else err("Cuenta creada. Revisa tu email para confirmarla y luego entra.");
   };
 }
@@ -284,7 +309,7 @@ function renderOnboarding(){
   <div class="center" style="margin:26px 0 18px">
     <div style="font-size:54px">🥕</div>
     <h1>Casi listo</h1>
-    <p class="muted">Cuéntame cuatro cosas y te calculo tu objetivo de calorías.</p>
+    <p class="muted">Cuéntame cuatro cosas y te calculo tu objetivo de calorías y proteína.</p>
   </div>
   <div class="card">
     <label>¿Cómo te llamas?</label>
@@ -314,9 +339,8 @@ function renderOnboarding(){
     </div>
     <label>Clave de API de Gemini (para las fotos)</label>
     <input type="password" id="ob-key" placeholder="AIza...">
-    <p class="muted" style="margin-top:5px">La de Sofi (archivo .env) o gratis en aistudio.google.com. Se guarda en tu perfil.</p>
     <div id="ob-err"></div>
-    <div style="margin-top:16px"><button class="btn" id="ob-go">Calcular mi objetivo →</button></div>
+    <div style="margin-top:16px"><button class="btn" id="ob-go">Calcular mis objetivos →</button></div>
   </div>`;
   document.querySelectorAll("#ob-sexo button").forEach(b=>b.onclick=()=>{obTmp.sexo=b.dataset.x;document.querySelectorAll("#ob-sexo button").forEach(x=>x.classList.toggle("on",x===b));});
   document.querySelectorAll("#ob-ritmo button").forEach(b=>b.onclick=()=>{obTmp.ritmo=b.dataset.x;document.querySelectorAll("#ob-ritmo button").forEach(x=>x.classList.toggle("on",x===b));});
@@ -344,50 +368,73 @@ function renderOnboarding(){
     app.innerHTML = `
     <div class="center" style="margin-top:50px">
       <div style="font-size:54px">🎯</div>
-      <h1>${esc(d.nombre)}, tu número es</h1>
-      <p style="font-size:56px;font-weight:800;color:var(--carrot);letter-spacing:-2px">${d.objetivo}</p>
-      <p class="muted" style="max-width:300px;margin:0 auto">kcal al día. Comiendo esto pierdes grasa de forma sostenida sin pasar hambre. La app lleva la cuenta, tú solo haz fotos.</p>
+      <h1>${esc(d.nombre)}, tus números</h1>
+      <p style="font-size:56px;font-weight:800;color:var(--carrot);letter-spacing:-2px">${d.objetivo} <span style="font-size:20px">kcal</span></p>
+      <p style="font-size:30px;font-weight:800;color:var(--green)">${protObjetivo(d)} g <span style="font-size:16px">de proteína</span></p>
+      <p class="muted" style="max-width:310px;margin:10px auto 0">Comiendo esas kcal pierdes grasa; llegando a esa proteína conservas el músculo. La app lleva la cuenta de las dos cosas.</p>
       <div style="margin-top:24px"><button class="btn green" id="ob-fin">Empezar 🥕</button></div>
     </div>`;
-    document.getElementById("ob-fin").onclick=()=>{vista="diario"; render();};
+    document.getElementById("ob-fin").onclick=async ()=>{vista="diario"; await cargarDia(); render();};
   };
 }
 
 /* ---------- diario ---------- */
 function renderDiario(){
+  const pAct = verUser===uid ? perfil : parejaPerfil;
+  const mio = verUser===uid;
+  const protT = protObjetivo(pAct);
   const total = entradas.reduce((s,x)=>s+x.kcal,0);
   const tp = Math.round(entradas.reduce((s,x)=>s+(x.proteina||0),0));
   const tc = Math.round(entradas.reduce((s,x)=>s+(x.carbs||0),0));
   const tg = Math.round(entradas.reduce((s,x)=>s+(x.grasa||0),0));
-  const rest = perfil.objetivo - total;
-  const pct = Math.min(1, total/perfil.objetivo);
-  const pasado = total > perfil.objetivo;
-  const R=62, C=2*Math.PI*R;
+  const rest = pAct.objetivo - total;
+  const pct = Math.min(1, total/pAct.objetivo);
+  const pasado = total > pAct.objetivo;
+  const esHoy = fechaSel === hoy();
+  const R=58, C=2*Math.PI*R;
 
   app.innerHTML = `
   <div class="topbar">
-    <div><h1>Hola, ${esc(perfil.nombre)} 🥕</h1><p class="muted" style="text-transform:capitalize">${fechaBonita()}</p></div>
+    <div><h1>${mio ? "Hola, "+esc(perfil.nombre)+" 🥕" : esc(pAct.nombre)}</h1></div>
     <button class="gear" id="btn-ajustes">⚙️</button>
   </div>
+
+  ${parejaPerfil ? `
+  <div class="seg" style="margin-bottom:10px">
+    <button id="ver-yo" class="${mio?"on":""}">Yo</button>
+    <button id="ver-pareja" class="${!mio?"on":""}">💛 ${esc(parejaPerfil.nombre)}</button>
+  </div>` : ""}
+
+  <div class="fnav">
+    <button id="f-prev">‹</button>
+    <span class="f">${esHoy ? "Hoy · " : ""}${fechaLarga(fechaSel)}</span>
+    <button id="f-next" ${esHoy?"disabled":""}>›</button>
+  </div>
+
   <div class="card">
     <div class="ringbox">
       <div class="ring">
-        <svg width="150" height="150">
-          <circle cx="75" cy="75" r="${R}" fill="none" stroke="var(--line)" stroke-width="13"/>
-          <circle cx="75" cy="75" r="${R}" fill="none" stroke="${pasado?"var(--red)":"var(--green)"}" stroke-width="13"
+        <svg width="140" height="140">
+          <circle cx="70" cy="70" r="${R}" fill="none" stroke="var(--line)" stroke-width="12"/>
+          <circle cx="70" cy="70" r="${R}" fill="none" stroke="${pasado?"var(--red)":"var(--green)"}" stroke-width="12"
             stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-pct)}" style="transition:stroke-dashoffset .5s"/>
         </svg>
-        <div class="mid"><b>${total}</b><span class="muted">de ${perfil.objetivo}</span></div>
+        <div class="mid"><b>${total}</b><span class="muted">de ${pAct.objetivo}</span></div>
       </div>
       <div>
-        <p style="font-weight:800;font-size:17px;color:${pasado?"var(--red)":"var(--ink)"}">
-          ${pasado ? "Te has pasado "+Math.abs(rest)+" kcal" : "Te quedan "+rest+" kcal"}</p>
+        <p style="font-weight:800;font-size:16px;color:${pasado?"var(--red)":"var(--ink)"}">
+          ${pasado ? "Pasado en "+Math.abs(rest)+" kcal" : rest+" kcal libres"}</p>
         <div style="margin-top:8px">
-          <span class="chip"><b>${tp}g</b>proteína</span><span class="chip"><b>${tc}g</b>carbos</span><span class="chip"><b>${tg}g</b>grasa</span>
+          <span class="chip ${tp>=protT?"prot-ok":""}"><b>${tp}/${protT}g</b>proteína</span>
+          <span class="chip"><b>${tc}g</b>carbos</span>
+          <span class="chip"><b>${tg}g</b>grasa</span>
         </div>
+        ${tp<protT && mio ? '<p class="muted" style="margin-top:6px">Te faltan '+(protT-tp)+' g de proteína — pollo, atún, huevos, yogur…</p>' : ""}
       </div>
     </div>
   </div>
+
+  ${mio ? `
   <div class="card">
     <input type="file" accept="image/*" capture="environment" id="foto" class="hide">
     <button class="btn" id="btn-foto" ${cargando?"disabled":""}>${cargando?'<span class="spin"></span>Analizando…':"📸 Foto a la comida"}</button>
@@ -399,9 +446,11 @@ function renderDiario(){
         <button class="btn sm" style="flex:0 0 54px" id="btn-txt-go">→</button>
       </div>
     </div>
+    ${!esHoy ? '<p class="muted" style="margin-top:8px">📅 Ojo: estás añadiendo al '+fechaLarga(fechaSel)+'</p>' : ""}
     <div>${errorMsg?'<div class="err">⚠ '+esc(errorMsg)+'</div>':""}</div>
-  </div>
-  ${pendiente ? `
+  </div>` : ""}
+
+  ${pendiente && mio ? `
   <div class="card" style="border:2px solid var(--carrot);background:var(--carrot-soft)">
     <h2>He detectado esto:</h2>
     ${pendiente.alimentos.map(a=>`<div class="entry"><span>${esc(a.nombre)}</span><b>${a.kcal} kcal</b></div>`).join("")}
@@ -412,9 +461,10 @@ function renderDiario(){
       <button class="btn sec sm" id="btn-no">Descartar</button>
     </div>
   </div>` : ""}
+
   <div class="card">
-    <h2>Diario de hoy</h2>
-    ${entradas.length===0 ? '<p class="muted" style="margin-top:8px">Aún nada. Hazle una foto a tu próxima comida y verás la magia.</p>'
+    <h2>${mio ? "Diario" : "Su diario"} ${esHoy ? "de hoy" : "del día"}</h2>
+    ${entradas.length===0 ? '<p class="muted" style="margin-top:8px">'+(mio?"Nada registrado este día.":"No registró nada este día.")+'</p>'
       : entradas.map(e=>`
       <div class="entry">
         <div style="flex:1;padding-right:10px">
@@ -423,12 +473,20 @@ function renderDiario(){
         </div>
         <div style="text-align:right">
           <p style="font-weight:800">${e.kcal}</p>
-          <button class="del" data-id="${e.id}">borrar</button>
+          ${mio?'<button class="del" data-id="'+e.id+'">borrar</button>':""}
         </div>
       </div>`).join("")}
   </div>`;
 
   document.getElementById("btn-ajustes").onclick = renderAjustes;
+  document.getElementById("f-prev").onclick = async ()=>{ fechaSel = addDias(fechaSel,-1); await cargarDia(); render(); };
+  const fn = document.getElementById("f-next");
+  if(fn) fn.onclick = async ()=>{ fechaSel = addDias(fechaSel,1); await cargarDia(); render(); };
+  const vy = document.getElementById("ver-yo"), vp = document.getElementById("ver-pareja");
+  if(vy) vy.onclick = async ()=>{ verUser = uid; await cargarDia(); render(); };
+  if(vp) vp.onclick = async ()=>{ verUser = parejaPerfil.user_id; await cargarDia(); render(); };
+
+  if(!mio) return;
   const inputFoto = document.getElementById("foto");
   document.getElementById("btn-foto").onclick = ()=>inputFoto.click();
   inputFoto.onchange = async e => {
@@ -444,8 +502,8 @@ function renderDiario(){
   if(pendiente){
     document.getElementById("btn-add").onclick = async ()=>{
       const fila = {
-        user_id: uid, fecha: hoy(),
-        hora: new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}),
+        user_id: uid, fecha: fechaSel,
+        hora: fechaSel===hoy() ? new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}) : "—",
         alimentos: pendiente.alimentos,
         kcal: pendiente.total_kcal,
         proteina: pendiente.alimentos.reduce((s,a)=>s+(a.proteina_g||0),0),
@@ -454,14 +512,14 @@ function renderDiario(){
       };
       const {data, error} = await sb.from("pastanaga_comidas").insert(fila).select().single();
       if(error){ errorMsg = "No se guardó: "+error.message; render(); return; }
-      entradas.push(data); pendiente=null; render();
+      entradas.push(data); pendiente=null; puntosCache=null; render();
     };
     document.getElementById("btn-no").onclick = ()=>{pendiente=null; render();};
   }
   document.querySelectorAll(".del").forEach(b=>b.onclick=async ()=>{
     const id = parseInt(b.dataset.id);
     const {error} = await sb.from("pastanaga_comidas").delete().eq("id",id);
-    if(!error) entradas = entradas.filter(x=>x.id!==id);
+    if(!error){ entradas = entradas.filter(x=>x.id!==id); puntosCache=null; }
     else errorMsg = "No se pudo borrar: "+error.message;
     render();
   });
@@ -541,16 +599,93 @@ function renderGym(){
     </div>`;
   }).join("")}
   <p class="muted" style="margin-top:4px">${done}/${rut.ejercicios.length} ejercicios · el peso que apuntes se guarda para la próxima sesión</p>
-  ${done===rut.ejercicios.length?'<div class="ok">💪 Sesión completada, máquina</div>':""}`;
+  ${done===rut.ejercicios.length?'<div class="ok">💪 Sesión completada, máquina (+15 pts)</div>':""}`;
 
   document.getElementById("btn-ajustes").onclick = renderAjustes;
-  document.querySelectorAll(".seg button[data-d]").forEach(b=>b.onclick=()=>{diaGym=b.dataset.d; guardarGymHoy(); render();});
+  document.querySelectorAll(".seg button[data-d]").forEach(b=>b.onclick=()=>{diaGym=b.dataset.d; guardarGymHoy(); puntosCache=null; render();});
   document.querySelectorAll(".chk").forEach(b=>b.onclick=()=>{
-    const k=diaGym+"-"+b.dataset.i; hechos[k]=!hechos[k]; guardarGymHoy(); render();
+    const k=diaGym+"-"+b.dataset.i; hechos[k]=!hechos[k]; guardarGymHoy(); puntosCache=null; render();
   });
   document.querySelectorAll(".kg").forEach(inp=>{
     inp.onchange=()=>{ perfil.pesos = perfil.pesos||{}; perfil.pesos[inp.dataset.n]=inp.value; guardarPesos(); };
   });
+}
+
+/* ---------- puntos ---------- */
+async function calcularPuntos(){
+  const [{data:ps},{data:coms},{data:gyms}] = await Promise.all([
+    sb.from("pastanaga_perfiles").select("user_id,nombre,peso,objetivo"),
+    sb.from("pastanaga_comidas").select("user_id,fecha,kcal,proteina"),
+    sb.from("pastanaga_gym").select("user_id,fecha,dia,hechos"),
+  ]);
+  const H = hoy();
+  return (ps||[]).map(p=>{
+    const porDia = {};
+    (coms||[]).filter(c=>c.user_id===p.user_id).forEach(c=>{
+      porDia[c.fecha] = porDia[c.fecha] || {kcal:0,prot:0};
+      porDia[c.fecha].kcal += c.kcal; porDia[c.fecha].prot += c.proteina||0;
+    });
+    let pts = 0, diasOk = 0, diasProt = 0;
+    const diasReg = Object.keys(porDia).length;
+    pts += diasReg * 10;
+    const protT = protObjetivo(p);
+    Object.entries(porDia).forEach(([f,v])=>{
+      if(f < H){
+        if(v.kcal > 0 && v.kcal <= p.objetivo){ pts += 25; diasOk++; }
+        if(v.prot >= protT){ pts += 15; diasProt++; }
+      }
+    });
+    let sesiones = 0;
+    (gyms||[]).filter(g=>g.user_id===p.user_id).forEach(g=>{
+      const n = Object.entries(g.hechos||{}).filter(([k,v])=>v && k.startsWith(g.dia+"-")).length;
+      if(n >= 5){ pts += 15; sesiones++; }
+    });
+    let racha = 0, f = porDia[H] ? H : addDias(H,-1);
+    while(porDia[f]){ racha++; f = addDias(f,-1); }
+    return {...p, pts, diasReg, diasOk, diasProt, sesiones, racha};
+  }).sort((a,b)=>b.pts-a.pts);
+}
+
+async function renderPuntos(){
+  app.innerHTML = `<div class="topbar"><h1>Puntos 🏆</h1><button class="gear" id="btn-ajustes">⚙️</button></div><p class="muted">Calculando…</p>`;
+  document.getElementById("btn-ajustes").onclick = renderAjustes;
+  if(!puntosCache) puntosCache = await calcularPuntos();
+  if(vista!=="puntos") return;
+  const lista = puntosCache;
+  app.innerHTML = `
+  <div class="topbar"><h1>Puntos 🏆</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
+  ${lista.map((p,i)=>`
+    <div class="pcard ${i===0&&lista.length>1?"lider":""}">
+      <div class="medal">${i===0 ? (lista.length>1?"🥇":"🏅") : "🥈"}</div>
+      <div>
+        <p style="font-weight:800;font-size:17px">${esc(p.nombre)}${p.user_id===uid?" (tú)":""}</p>
+        <div style="margin-top:3px">
+          <span class="stat">🔥 racha ${p.racha}</span>
+          <span class="stat">✅ ${p.diasOk} días en objetivo</span>
+          <span class="stat">🍗 ${p.diasProt} de proteína</span>
+          <span class="stat">🏋️ ${p.sesiones} sesiones</span>
+        </div>
+      </div>
+      <div class="pts">${p.pts}<small>puntos</small></div>
+    </div>`).join("")}
+  ${lista.length<2 ? '<p class="muted" style="margin-bottom:12px">Cuando '+(parejaPerfil?esc(parejaPerfil.nombre):"tu pareja")+' registre cosas, aparecerá aquí el duelo.</p>' : ""}
+  <div class="card">
+    <h2>Cómo se ganan</h2>
+    <p class="pt">📔 <b>+10</b> por cada día que registras comidas</p>
+    <p class="pt">🎯 <b>+25</b> por cerrar el día dentro del objetivo</p>
+    <p class="pt">🍗 <b>+15</b> por llegar a tu proteína diaria</p>
+    <p class="pt">🏋️ <b>+15</b> por sesión de gym completada</p>
+    <p class="muted" style="margin-top:6px">Los bonus de objetivo y proteína se dan al cerrar el día (hoy aún no cuenta).</p>
+  </div>
+  <div class="card">
+    <h2>Premios 💛</h2>
+    <p class="pt"><b>100 pts</b> · el otro prepara el desayuno del finde</p>
+    <p class="pt"><b>250 pts</b> · masaje de 20 minutos</p>
+    <p class="pt"><b>500 pts</b> · cena donde elija el ganador</p>
+    <p class="pt"><b>1000 pts</b> · día de plan sorpresa</p>
+    <p class="muted" style="margin-top:6px">Negociables entre vosotros, yo solo llevo la cuenta 😄</p>
+  </div>`;
+  document.getElementById("btn-ajustes").onclick = renderAjustes;
 }
 
 /* ---------- ajustes ---------- */
@@ -564,7 +699,7 @@ function renderAjustes(){
       <div><label>Peso actual (kg)</label><input type="number" id="aj-peso" step="0.1" value="${perfil.peso}"></div>
       <div><label>Objetivo (kcal)</label><input type="number" id="aj-obj" value="${perfil.objetivo}"></div>
     </div>
-    <p class="muted" style="margin-top:6px">Si cambias el peso, dale a recalcular y te ajusto el objetivo.</p>
+    <p class="muted" style="margin-top:6px">Proteína diaria: se calcula sola (1.6 g por kg de peso). Si actualizas el peso, se actualiza también.</p>
     <div style="margin-top:10px"><button class="btn sec sm" id="aj-recalc">🔄 Recalcular objetivo con mi peso nuevo</button></div>
     <label>Clave de API de Gemini</label>
     <input type="password" id="aj-key" value="${esc(perfil.apikey||"")}">
@@ -589,12 +724,13 @@ function renderAjustes(){
     const {error} = await sb.from("pastanaga_perfiles").update(cambios).eq("user_id",uid);
     if(error){ alert("Error guardando: "+error.message); return; }
     Object.assign(perfil, cambios);
+    puntosCache=null;
     ov.remove(); render();
   };
   ov.querySelector("#aj-x").onclick=()=>ov.remove();
   ov.querySelector("#aj-salir").onclick=async ()=>{
     await sb.auth.signOut();
-    uid=null; perfil=null; entradas=[]; ov.remove(); render();
+    uid=null; perfil=null; parejaPerfil=null; entradas=[]; ov.remove(); render();
   };
 }
 
@@ -602,7 +738,11 @@ function renderAjustes(){
 (async function init(){
   if(!sb){ render(); return; }
   const {data:{session}} = await sb.auth.getSession();
-  if(session){ uid = session.user.id; await cargarTodo(); }
+  if(session){
+    uid = session.user.id;
+    await cargarPerfiles();
+    if(perfil){ await cargarDia(); await cargarGymHoy(); }
+  }
   render();
 })();
 </script>
