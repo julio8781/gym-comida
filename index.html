@@ -114,8 +114,12 @@
 </nav>
 
 <script>
-const SB_URL = "https://kepdacdtqffhkhaswqsk.supabase.co";        // 
+/* ================================================================
+   CONFIGURACIÓN — pega aquí los datos de tu proyecto de Supabase
+================================================================ */
+const SB_URL = "https://kepdacdtqffhkhaswqsk.supabase.co";        
 const SB_KEY = "sb_publishable_6a4q6zi8Uojdg-GmWCflGg_66FiNDNE";
+/* ================================================================ */
 
 const sb = (SB_URL.startsWith("https") && window.supabase)
   ? window.supabase.createClient(SB_URL, SB_KEY) : null;
@@ -135,6 +139,7 @@ let fechaSel = hoy();          // qué día estamos viendo
 let entradas = [];
 let vista = "diario";
 let pendiente = null, producto = null, cargando = false, errorMsg = "";
+let fotoPend = null;   // base64 de la foto pendiente de confirmar
 let diaGym = "A", hechos = {};
 let obTmp = {sexo:"h", ritmo:"400"};
 let puntosCache = null;
@@ -184,12 +189,23 @@ async function gemini(parts){
   return JSON.parse(texto.replace(/```json|```/g,"").trim());
 }
 
-/* compresión en cliente: máx 896px + JPEG 72% → menos tokens a Gemini */
-function redimensionar(file){
+/* compresión eficiente: createImageBitmap reduce sin cargar la foto entera en RAM */
+async function redimensionar(file){
+  const max = 896;
+  if (window.createImageBitmap) {
+    try {
+      const bmp = await createImageBitmap(file, { resizeWidth: max, resizeQuality: "medium" });
+      const c = document.createElement("canvas");
+      c.width = bmp.width; c.height = bmp.height;
+      c.getContext("2d").drawImage(bmp, 0, 0);
+      bmp.close();
+      return c.toDataURL("image/jpeg", .72).split(",")[1];
+    } catch (e) { /* fallback abajo */ }
+  }
   return new Promise((res,rej)=>{
     const img = new Image(), url = URL.createObjectURL(file);
     img.onload = ()=>{
-      const max=896; let w=img.width, h=img.height;
+      let w=img.width, h=img.height;
       if(w>max||h>max){const s=max/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s);}
       const c=document.createElement("canvas"); c.width=w; c.height=h;
       c.getContext("2d").drawImage(img,0,0,w,h);
@@ -453,6 +469,7 @@ function renderDiario(){
   ${pendiente && mio ? `
   <div class="card" style="border:2px solid var(--carrot);background:var(--carrot-soft)">
     <h2>He detectado esto:</h2>
+    ${fotoPend?'<img src="data:image/jpeg;base64,'+fotoPend+'" style="width:100%;border-radius:12px;margin:8px 0">':""}
     ${pendiente.alimentos.map(a=>`<div class="entry"><span>${esc(a.nombre)}</span><b>${a.kcal} kcal</b></div>`).join("")}
     <div class="entry" style="font-weight:800"><span>TOTAL</span><span>${pendiente.total_kcal} kcal</span></div>
     ${pendiente.comentario?'<p class="muted" style="font-style:italic;margin-top:6px">"'+esc(pendiente.comentario)+'"</p>':""}
@@ -467,6 +484,7 @@ function renderDiario(){
     ${entradas.length===0 ? '<p class="muted" style="margin-top:8px">'+(mio?"Nada registrado este día.":"No registró nada este día.")+'</p>'
       : entradas.map(e=>`
       <div class="entry">
+        ${e.foto_url?'<a href="'+esc(e.foto_url)+'" target="_blank" style="flex-shrink:0;margin-right:10px"><img src="'+esc(e.foto_url)+'" style="width:52px;height:52px;object-fit:cover;border-radius:10px"></a>':""}
         <div style="flex:1;padding-right:10px">
           <p class="muted">${esc(e.hora)}</p>
           <p style="font-weight:700;font-size:14px">${(e.alimentos||[]).map(a=>esc(a.nombre)).join(", ")}</p>
@@ -492,15 +510,26 @@ function renderDiario(){
   inputFoto.onchange = async e => {
     const f = e.target.files[0]; if(!f) return; e.target.value="";
     let b64=null; try{ b64 = await redimensionar(f); }catch(x){}
+    fotoPend = b64;
     await analizar([{inline_data:{mime_type:"image/jpeg",data:b64}},{text:P_COMIDA}], "comida");
   };
   document.getElementById("btn-txt").onclick = ()=>document.getElementById("txtbox").classList.toggle("hide");
   document.getElementById("btn-txt-go").onclick = async ()=>{
     const t = document.getElementById("txt-comida").value.trim(); if(!t) return;
+    fotoPend = null;
     await analizar([{text:'Comida descrita por el usuario: "'+t+'"\n\n'+P_COMIDA}], "comida");
   };
   if(pendiente){
     document.getElementById("btn-add").onclick = async ()=>{
+      let foto_url = null;
+      if(fotoPend){
+        try{
+          const blob = await (await fetch("data:image/jpeg;base64,"+fotoPend)).blob();
+          const path = uid+"/"+Date.now()+".jpg";
+          const {error:eUp} = await sb.storage.from("comidas").upload(path, blob, {contentType:"image/jpeg"});
+          if(!eUp) foto_url = sb.storage.from("comidas").getPublicUrl(path).data.publicUrl;
+        }catch(x){ /* si falla la subida, la comida se guarda sin foto */ }
+      }
       const fila = {
         user_id: uid, fecha: fechaSel,
         hora: fechaSel===hoy() ? new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}) : "—",
@@ -509,17 +538,25 @@ function renderDiario(){
         proteina: pendiente.alimentos.reduce((s,a)=>s+(a.proteina_g||0),0),
         carbs: pendiente.alimentos.reduce((s,a)=>s+(a.carbs_g||0),0),
         grasa: pendiente.alimentos.reduce((s,a)=>s+(a.grasa_g||0),0),
+        foto_url,
       };
       const {data, error} = await sb.from("pastanaga_comidas").insert(fila).select().single();
       if(error){ errorMsg = "No se guardó: "+error.message; render(); return; }
-      entradas.push(data); pendiente=null; puntosCache=null; render();
+      entradas.push(data); pendiente=null; fotoPend=null; puntosCache=null; render();
     };
-    document.getElementById("btn-no").onclick = ()=>{pendiente=null; render();};
+    document.getElementById("btn-no").onclick = ()=>{pendiente=null; fotoPend=null; render();};
   }
   document.querySelectorAll(".del").forEach(b=>b.onclick=async ()=>{
     const id = parseInt(b.dataset.id);
+    const ent = entradas.find(x=>x.id===id);
     const {error} = await sb.from("pastanaga_comidas").delete().eq("id",id);
-    if(!error){ entradas = entradas.filter(x=>x.id!==id); puntosCache=null; }
+    if(!error){
+      entradas = entradas.filter(x=>x.id!==id); puntosCache=null;
+      if(ent?.foto_url){
+        const path = ent.foto_url.split("/comidas/")[1];
+        if(path) sb.storage.from("comidas").remove([decodeURIComponent(path)]);
+      }
+    }
     else errorMsg = "No se pudo borrar: "+error.message;
     render();
   });
