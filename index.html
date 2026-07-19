@@ -187,8 +187,13 @@ const P_PRODUCTO = 'Eres un nutricionista que evalúa productos de supermercado 
 const P_TICKET = 'Lee este ticket de supermercado. Devuelve SOLO JSON válido sin markdown: {"articulos":["nombre corto y normalizado",...]}. Solo los artículos (comida y productos), sin precios ni cantidades, nombres cortos tipo "Pechuga de pollo", "Yogur griego". Si la imagen no es un ticket: {"articulos":[]}';
 
 async function pedirSugerencias(rest, protFalta){
+  const {data:d} = await sb.from("pastanaga_despensa").select("nombre");
+  const enCasa = (d||[]).map(x=>x.nombre);
   const evitar = sugPrevias.length ? ' NO repitas ni propongas nada parecido a estas ya sugeridas: '+sugPrevias.join(", ")+'.' : '';
-  const prompt = 'Eres un nutricionista especializado en comidas RÁPIDAS y FÁCILES: máximo 20 minutos, ingredientes normales de supermercado español, sin técnicas complicadas ni utensilios raros. Propón exactamente 3 opciones de comida distintas entre sí que quepan en '+rest+' kcal como máximo cada una'+(protFalta>0?' y que aporten mucha proteína (hoy faltan '+protFalta+' g)':'')+'.'+evitar+' Responde SOLO con JSON válido, sin markdown ni backticks: {"opciones":[{"nombre":"","desc":"cómo se prepara, en 1 frase","kcal":0,"proteina_g":0,"tiempo_min":0}]}';
+  const despTxt = enCasa.length
+    ? ' EN CASA HAY EXACTAMENTE ESTO: '+enCasa.join(", ")+'. PRIORIDAD ABSOLUTA: las primeras opciones deben poder hacerse SOLO con lo que hay en casa (más básicos de cualquier cocina: aceite, sal, especias). Solo si no da para 3 opciones, propón alguna que necesite comprar algo, listando en "faltan" únicamente lo que NO está en casa. Ordena: primero las de despensa.'
+    : ' La despensa está vacía o sin registrar, así que propón cosas sencillas de conseguir y lista sus ingredientes en "faltan".';
+  const prompt = 'Eres un nutricionista especializado en comidas RÁPIDAS y FÁCILES: máximo 20 minutos, ingredientes normales de supermercado español, sin técnicas complicadas ni utensilios raros. Propón exactamente 3 opciones de comida distintas entre sí que quepan en '+rest+' kcal como máximo cada una'+(protFalta>0?' y que aporten mucha proteína (hoy faltan '+protFalta+' g)':'')+'.'+despTxt+evitar+' Responde SOLO con JSON válido, sin markdown ni backticks: {"opciones":[{"nombre":"","desc":"cómo se prepara, en 1 frase","kcal":0,"proteina_g":0,"tiempo_min":0,"de_despensa":true,"faltan":[]}]} donde de_despensa=true solo si se hace íntegramente con lo de casa, y faltan lista lo que habría que comprar (vacío si nada).';
   return gemini([{text:prompt}]);
 }
 
@@ -545,9 +550,10 @@ function renderDiario(){
     <h2>🍽️ Te caben estas:</h2>
     ${sugerencias.map(o=>`
     <div style="padding:9px 0;border-bottom:1px dashed var(--line)">
-      <p style="font-weight:800;font-size:15px">${esc(o.nombre)}</p>
+      <p style="font-weight:800;font-size:15px">${esc(o.nombre)} ${o.de_despensa?'<span style="background:var(--green);color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:8px;vertical-align:2px">🧊 CON LO DE CASA</span>':""}</p>
       <p class="muted" style="margin:2px 0 3px">${esc(o.desc)}</p>
       <p style="font-size:13px;font-weight:700">~${o.kcal} kcal · ${Math.round(o.proteina_g||0)}g prot · ⏱️ ${o.tiempo_min} min</p>
+      ${!o.de_despensa && (o.faltan||[]).length ? '<p style="font-size:12px;margin-top:3px;color:var(--orange);font-weight:700">🛒 Faltaría: '+o.faltan.map(f=>esc(f)).join(", ")+' <button class="sug-falta" data-f="'+esc(JSON.stringify(o.faltan))+'" style="border:1.5px solid var(--orange);background:#fff;color:var(--orange);border-radius:8px;padding:2px 8px;font-size:11px;font-weight:800;cursor:pointer;margin-left:4px">➕ a la lista</button></p>' : ""}
     </div>`).join("")}
     <div class="row" style="margin-top:12px">
       <button class="btn sm" id="btn-ceno-mas" ${cargando?"disabled":""}>${cargando?'<span class="spin"></span>Pensando…':"🔁 No me molan, otras 3"}</button>
@@ -665,6 +671,16 @@ function renderDiario(){
   if(bcm) bcm.onclick = pedirCenas;
   const bcx = document.getElementById("btn-ceno-x");
   if(bcx) bcx.onclick = ()=>{ sugerencias=null; render(); };
+  document.querySelectorAll(".sug-falta").forEach(b=>b.onclick=async ()=>{
+    try{
+      const items = JSON.parse(b.dataset.f);
+      const {data:l} = await sb.from("pastanaga_lista").select("nombre");
+      const ya = (l||[]).map(x=>x.nombre.toLowerCase());
+      const nuevos = items.filter(n=>!ya.includes(String(n).toLowerCase()));
+      if(nuevos.length) await sb.from("pastanaga_lista").insert(nuevos.map(n=>({nombre:n})));
+      b.textContent = "✓ en la lista"; b.disabled = true; b.style.opacity = ".5";
+    }catch(e){ errorMsg = "No se pudo añadir a la lista"; render(); }
+  });
   document.getElementById("btn-txt-go").onclick = async ()=>{
     const t = document.getElementById("txt-comida").value.trim(); if(!t) return;
     fotoPend = null;
