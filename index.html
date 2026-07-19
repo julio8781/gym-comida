@@ -150,34 +150,60 @@ let lista = [];            // lista de la compra compartida
 let despensa = [];         // despensa compartida
 let ticketPend = null;     // artículos leídos del ticket, pendientes de confirmar
 let reacciones = {};       // comida_id -> {mia:'up'|'down', otra:'up'|'down'}
-let diaGym = "A", hechos = {};
+let diaGym = "A";
+let gymUser = null;        // de quién estamos viendo el gym
+let fechaGym = hoy();      // qué día del registro estamos viendo
+let sesionG = null;        // sesión registrada de ese día: {dia, registro:{ejercicios:[{id,hecho,kg}]}}
+let modoEditar = false;    // editando la rutina plantilla
+let bibAbierta = false;    // biblioteca de ejercicios abierta
 let obTmp = {sexo:"h", ritmo:"400"};
 let puntosCache = null;
 
-/* ============ rutinas ============ */
-const RUTINAS = {
-  A:{nota:"Full body · descansa 90 seg entre series · deja 2 reps en el tanque",
-    ejercicios:[
-      {n:"Sentadilla (barra o máquina)",s:"3 × 8-10",p:1},
-      {n:"Press banca o máquina de pecho",s:"3 × 8-10",p:1},
-      {n:"Remo con mancuerna o máquina",s:"3 × 10",p:1},
-      {n:"Plancha",s:"3 × 30-45 seg",p:0},
-      {n:"Elevaciones de piernas",s:"3 × 10",p:0}]},
-  B:{nota:"Full body · descansa 90 seg · sube peso cuando completes todas las reps",
-    ejercicios:[
-      {n:"Peso muerto rumano o prensa",s:"3 × 8-10",p:1},
-      {n:"Press militar (hombros)",s:"3 × 8-10",p:1},
-      {n:"Jalón al pecho",s:"3 × 10",p:1},
-      {n:"Rueda abdominal o crunch en polea",s:"3 × 12",p:1},
-      {n:"Plancha lateral",s:"3 × 20-30 seg/lado",p:0}]},
-  C:{nota:"Día opcional · cardio + core + brazos · si solo puedes 2 días, sáltalo sin culpa",
-    ejercicios:[
-      {n:"Piscina o cinta (ritmo suave)",s:"20-30 min",p:0},
-      {n:"Zancadas",s:"3 × 10/pierna",p:1},
-      {n:"Curl de bíceps",s:"3 × 12",p:1},
-      {n:"Extensión de tríceps en polea",s:"3 × 12",p:1},
-      {n:"Plancha",s:"3 × máximo",p:0}]}
+/* ============ biblioteca de ejercicios ============
+   El GIF de cada ejercicio se busca en img/<id>.gif dentro del repo.
+   Si no existe, la app enseña un placeholder 💪 sin romperse. */
+const GRUPOS = ["Pecho","Espalda","Pierna","Hombro","Bíceps","Tríceps","Core","Cardio"];
+const BIB = {
+  press_banca:{n:"Press banca",m:"Pecho",s:"3 × 8-10",p:1,tips:["Baja la barra al pecho con control, sin rebotar","Pies firmes en el suelo y escápulas juntas"]},
+  press_inclinado:{n:"Press inclinado con mancuernas",m:"Pecho",s:"3 × 10",p:1,tips:["Banco a 30-45º, no más","Baja hasta sentir el estiramiento del pecho"]},
+  aperturas:{n:"Aperturas con mancuernas",m:"Pecho",s:"3 × 12",p:1,tips:["Codos ligeramente flexionados todo el rato","Movimiento de abrazo, no de press"]},
+  fondos:{n:"Fondos en paralelas",m:"Pecho",s:"3 × máximo",p:0,tips:["Inclínate hacia delante para dar más pecho","Si no llegas, usa la máquina asistida"]},
+  jalon_pecho:{n:"Jalón al pecho",m:"Espalda",s:"3 × 10",p:1,tips:["Tira con los codos, no con los brazos","Lleva la barra a la parte alta del pecho"]},
+  remo_mancuerna:{n:"Remo con mancuerna",m:"Espalda",s:"3 × 10",p:1,tips:["Espalda recta apoyado en el banco","Lleva el codo hacia la cadera, no hacia fuera"]},
+  remo_maquina:{n:"Remo en máquina",m:"Espalda",s:"3 × 10",p:1,tips:["Pecho pegado al soporte","Aprieta las escápulas al final del recorrido"]},
+  dominadas:{n:"Dominadas (o asistidas)",m:"Espalda",s:"3 × máximo",p:0,tips:["Barbilla por encima de la barra","Baja del todo, sin medias repeticiones"]},
+  sentadilla:{n:"Sentadilla (barra o máquina)",m:"Pierna",s:"3 × 8-10",p:1,tips:["Baja hasta muslos paralelos al suelo","Rodillas siguiendo la punta de los pies"]},
+  peso_muerto:{n:"Peso muerto rumano",m:"Pierna",s:"3 × 8-10",p:1,tips:["Espalda SIEMPRE recta, la barra pegada al cuerpo","Baja empujando la cadera atrás, no doblando rodillas"]},
+  prensa:{n:"Prensa de piernas",m:"Pierna",s:"3 × 10",p:1,tips:["No bloquees las rodillas arriba","Baja hasta 90º sin despegar el lumbar"]},
+  zancadas:{n:"Zancadas",m:"Pierna",s:"3 × 10/pierna",p:1,tips:["Paso largo, rodilla trasera casi al suelo","Torso vertical, sin inclinarte"]},
+  curl_femoral:{n:"Curl femoral tumbado",m:"Pierna",s:"3 × 12",p:1,tips:["Cadera pegada al banco","Sube rápido, baja lento"]},
+  extension_cuadriceps:{n:"Extensión de cuádriceps",m:"Pierna",s:"3 × 12",p:1,tips:["Aguanta 1 segundo arriba","No des tirones con el peso"]},
+  gemelos:{n:"Elevación de gemelos",m:"Pierna",s:"3 × 15",p:1,tips:["Sube hasta la punta del todo","Estira bien abajo en cada repetición"]},
+  press_militar:{n:"Press militar (hombros)",m:"Hombro",s:"3 × 8-10",p:1,tips:["Aprieta el abdomen para no arquear la espalda","La barra sube pegada a la cara"]},
+  elevaciones_laterales:{n:"Elevaciones laterales",m:"Hombro",s:"3 × 12",p:1,tips:["Peso ligero y sin balanceo","Sube hasta la altura de los hombros, no más"]},
+  pajaros:{n:"Pájaros (deltoide posterior)",m:"Hombro",s:"3 × 12",p:1,tips:["Torso inclinado, espalda recta","Abre como si volaras, codos algo doblados"]},
+  curl_biceps:{n:"Curl de bíceps",m:"Bíceps",s:"3 × 12",p:1,tips:["Codos pegados al cuerpo, quietos","No balancees el cuerpo para subir el peso"]},
+  curl_martillo:{n:"Curl martillo",m:"Bíceps",s:"3 × 12",p:1,tips:["Agarre neutro, palmas enfrentadas","Trabaja también el antebrazo"]},
+  triceps_polea:{n:"Extensión de tríceps en polea",m:"Tríceps",s:"3 × 12",p:1,tips:["Codos fijos pegados al cuerpo","Extiende del todo y controla la subida"]},
+  press_frances:{n:"Press francés",m:"Tríceps",s:"3 × 10",p:1,tips:["Solo se mueve el antebrazo","Baja la barra a la frente con control"]},
+  plancha:{n:"Plancha",m:"Core",s:"3 × 30-45 seg",p:0,tips:["Cuerpo en línea recta, sin subir el culo","Aprieta abdomen y glúteo todo el rato"]},
+  plancha_lateral:{n:"Plancha lateral",m:"Core",s:"3 × 20-30 seg/lado",p:0,tips:["Cadera arriba, sin dejarla caer","Codo justo debajo del hombro"]},
+  elevaciones_piernas:{n:"Elevaciones de piernas",m:"Core",s:"3 × 10",p:0,tips:["Baja las piernas sin arquear el lumbar","Si es fácil, hazlas colgado de la barra"]},
+  crunch_polea:{n:"Crunch en polea",m:"Core",s:"3 × 12",p:1,tips:["Enrolla el tronco, no tires con los brazos","Exhala al bajar"]},
+  rueda:{n:"Rueda abdominal",m:"Core",s:"3 × 10",p:0,tips:["Avanza solo hasta donde controles","Abdomen apretado para proteger el lumbar"]},
+  cardio_suave:{n:"Piscina o cinta (ritmo suave)",m:"Cardio",s:"20-30 min",p:0,tips:["Ritmo al que puedas hablar","Lo importante es sumar minutos, no reventar"]},
 };
+const RUTINA_DEF = {
+  A:["sentadilla","press_banca","remo_mancuerna","plancha","elevaciones_piernas"],
+  B:["peso_muerto","press_militar","jalon_pecho","crunch_polea","plancha_lateral"],
+  C:["cardio_suave","zancadas","curl_biceps","triceps_polea","plancha"],
+};
+const NOTAS_DIA = {
+  A:"Full body · descansa 90 seg entre series · deja 2 reps en el tanque",
+  B:"Full body · descansa 90 seg · sube peso cuando completes todas las reps",
+  C:"Día opcional · cardio + core + brazos · si solo puedes 2 días, sáltalo sin culpa",
+};
+const rutinaDe = p => (p && p.rutina) || RUTINA_DEF;
 
 /* ============ Gemini ============ */
 const MODELO = "gemini-flash-latest";
@@ -284,13 +310,31 @@ async function cargarCompartidas(){
   const {data} = await sb.from("pastanaga_compartidas").select().eq("para_user",uid).order("id");
   compartidasPend = data || [];
 }
-async function cargarGymHoy(){
-  const {data:g} = await sb.from("pastanaga_gym").select().eq("user_id",uid).eq("fecha",hoy()).maybeSingle();
-  if(g){ diaGym = g.dia; hechos = g.hechos || {}; }
+async function cargarGymDia(){
+  const {data:g} = await sb.from("pastanaga_gym").select()
+    .eq("user_id", gymUser||uid).eq("fecha", fechaGym).maybeSingle();
+  if(g && g.registro){ sesionG = {dia:g.dia, registro:g.registro}; diaGym = g.dia; }
+  else if(g){
+    // sesión antigua (formato viejo): la reconstruimos para poder verla
+    const ids = RUTINA_DEF[g.dia]||[];
+    sesionG = {dia:g.dia, registro:{ejercicios: ids.map((id,i)=>({id, hecho: !!(g.hechos||{})[g.dia+"-"+i], kg:""}))}};
+    diaGym = g.dia;
+  }
+  else sesionG = null;
 }
-async function guardarGymHoy(){
-  const {error} = await sb.from("pastanaga_gym").upsert({user_id:uid, fecha:hoy(), dia:diaGym, hechos});
-  if(error){ errorMsg = "No se guardó el gym: "+error.message; }
+function crearRegistro(dia){
+  const ids = (rutinaDe(perfil)[dia]||[]).filter(id=>BIB[id]);
+  return {ejercicios: ids.map(id=>({id, hecho:false, kg: String((perfil.pesos||{})[id] ?? (perfil.pesos||{})[BIB[id].n] ?? "")}))};
+}
+async function guardarSesion(){
+  const {error} = await sb.from("pastanaga_gym").upsert({
+    user_id: uid, fecha: fechaGym, dia: sesionG.dia, hechos: {}, registro: sesionG.registro,
+  });
+  if(error){ errorMsg = "No se guardó la sesión: "+error.message; }
+}
+async function guardarRutina(){
+  const {error} = await sb.from("pastanaga_perfiles").update({rutina: perfil.rutina}).eq("user_id",uid);
+  if(error){ errorMsg = "No se guardó la rutina: "+error.message; }
 }
 async function guardarPesos(){
   const {error} = await sb.from("pastanaga_perfiles").update({pesos:perfil.pesos}).eq("user_id",uid);
@@ -311,6 +355,7 @@ nav.querySelectorAll("button").forEach(b=>b.onclick=async ()=>{
   vista=b.dataset.v; errorMsg="";
   if(vista==="diario"){ await cargarDia(); await cargarCompartidas(); }
   if(vista==="compra"){ await cargarCompra(); }
+  if(vista==="gym"){ if(!gymUser) gymUser = uid; await cargarGymDia(); }
   render();
 });
 
@@ -360,7 +405,7 @@ function renderLogin(){
     const {data, error} = await sb.auth.signInWithPassword({email, password:pass});
     if(error){ b.disabled=false; b.textContent="Entrar"; return err(error.message.includes("Invalid")?"Email o contraseña incorrectos":error.message); }
     uid = data.user.id;
-    await cargarPerfiles(); if(perfil){ await cargarDia(); await cargarGymHoy(); await cargarCompartidas(); }
+    await cargarPerfiles(); if(perfil){ gymUser = uid; await cargarDia(); await cargarGymDia(); await cargarCompartidas(); }
     render();
   };
   document.getElementById("lg-nuevo").onclick = async ()=>{
@@ -1003,34 +1048,177 @@ function renderCompra(){
 
 /* ---------- gym ---------- */
 function renderGym(){
-  const rut = RUTINAS[diaGym];
-  const done = rut.ejercicios.filter((_,i)=>hechos[diaGym+"-"+i]).length;
+  const mio = gymUser===uid;
+  const esHoyG = fechaGym===hoy();
+  const rut = rutinaDe(perfil);
+
+  /* --- modo editar rutina --- */
+  if(modoEditar && mio){
+    const ids = (rut[diaGym]||[]).filter(id=>BIB[id]);
+    app.innerHTML = `
+    <div class="topbar"><h1>Mi rutina ✏️</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
+    <div class="seg" style="margin-bottom:12px">
+      ${["A","B","C"].map(d=>`<button data-d="${d}" class="${diaGym===d?"on":""}">Día ${d}</button>`).join("")}
+    </div>
+    <p class="muted" style="margin-bottom:12px">${NOTAS_DIA[diaGym]}</p>
+    ${ids.map(id=>`
+    <div class="ej"><div class="body" style="cursor:pointer" data-ficha="${id}">
+      <p class="nm">${BIB[id].n} <span class="muted" style="font-weight:600">· ${BIB[id].m}</span></p>
+      <p class="muted">${BIB[id].s}</p></div>
+      <button class="ed-del" data-id="${id}" style="width:48px;border:0;border-left:2px solid var(--line);background:none;font-size:17px;cursor:pointer">✕</button>
+    </div>`).join("")}
+    <button class="btn sec sm" id="ed-add" style="margin-top:4px">➕ Añadir ejercicio</button>
+    <div style="margin-top:12px"><button class="btn green" id="ed-fin">✓ Listo</button></div>
+    <p class="muted" style="margin-top:8px">Los cambios valen para las próximas sesiones; lo ya registrado no se toca.</p>
+
+    ${bibAbierta ? `
+    <div class="overlay" id="bib-ov"><div class="sheet">
+      <h2 style="margin-bottom:8px">Biblioteca 📚</h2>
+      ${GRUPOS.map(g=>{
+        const ejs = Object.entries(BIB).filter(([id,e])=>e.m===g && !ids.includes(id));
+        if(!ejs.length) return "";
+        return '<p style="font-weight:800;margin:12px 0 4px">'+g+'</p>'+ejs.map(([id,e])=>
+        '<div class="entry" style="align-items:center"><div style="flex:1"><p style="font-weight:700;font-size:14px">'+e.n+'</p><p class="muted">'+e.s+'</p></div><button class="bib-add" data-id="'+id+'" style="border:2px solid var(--green);background:var(--green-soft);color:var(--green);border-radius:10px;width:36px;height:36px;font-size:19px;font-weight:800;cursor:pointer">+</button></div>').join("");
+      }).join("")}
+      <div style="margin-top:14px"><button class="btn sec sm" id="bib-x">Cerrar</button></div>
+    </div></div>` : ""}`;
+
+    document.getElementById("btn-ajustes").onclick = renderAjustes;
+    document.querySelectorAll(".seg button[data-d]").forEach(b=>b.onclick=()=>{diaGym=b.dataset.d; render();});
+    document.querySelectorAll(".ed-del").forEach(b=>b.onclick=async ()=>{
+      perfil.rutina = JSON.parse(JSON.stringify(rut));
+      perfil.rutina[diaGym] = perfil.rutina[diaGym].filter(x=>x!==b.dataset.id);
+      await guardarRutina(); render();
+    });
+    document.getElementById("ed-add").onclick = ()=>{bibAbierta=true; render();};
+    document.getElementById("ed-fin").onclick = ()=>{modoEditar=false; bibAbierta=false; render();};
+    document.querySelectorAll(".bib-add").forEach(b=>b.onclick=async ()=>{
+      perfil.rutina = JSON.parse(JSON.stringify(rut));
+      perfil.rutina[diaGym].push(b.dataset.id);
+      await guardarRutina(); render();
+    });
+    const bx = document.getElementById("bib-x");
+    if(bx) bx.onclick = ()=>{bibAbierta=false; render();};
+    const bov = document.getElementById("bib-ov");
+    if(bov) bov.onclick = e=>{ if(e.target===bov){bibAbierta=false; render();} };
+    document.querySelectorAll("[data-ficha]").forEach(el=>el.onclick=()=>renderFicha(el.dataset.ficha));
+    return;
+  }
+
+  /* --- vista normal: registro por fecha --- */
+  const reg = sesionG?.registro;
+  const done = reg ? reg.ejercicios.filter(x=>x.hecho).length : 0;
+
   app.innerHTML = `
   <div class="topbar"><h1>Gym 🏋️</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
-  <div class="seg" style="margin-bottom:12px">
-    ${["A","B","C"].map(d=>`<button data-d="${d}" class="${diaGym===d?"on":""}">Día ${d}${d==="C"?'<br><small>opcional</small>':""}</button>`).join("")}
+
+  ${parejaPerfil ? `
+  <div class="seg" style="margin-bottom:10px">
+    <button id="g-yo" class="${mio?"on":""}">Yo</button>
+    <button id="g-pareja" class="${!mio?"on":""}">💛 ${esc(parejaPerfil.nombre)}</button>
+  </div>` : ""}
+
+  <div class="fnav">
+    <button id="g-prev">‹</button>
+    <span class="f">${esHoyG ? "Hoy · " : ""}${fechaLarga(fechaGym)}</span>
+    <button id="g-next" ${esHoyG?"disabled":""}>›</button>
   </div>
-  <p class="muted" style="margin-bottom:12px">${rut.nota}</p>
   ${errorMsg?'<div class="err" style="margin-bottom:10px">⚠ '+esc(errorMsg)+'</div>':""}
-  ${rut.ejercicios.map((ej,i)=>{
-    const k=diaGym+"-"+i, h=!!hechos[k];
-    return `<div class="ej ${h?"done":""}">
-      <button class="chk" data-i="${i}">${h?"✓":""}</button>
-      <div class="body"><p class="nm">${ej.n}</p><p class="muted">${ej.s}</p></div>
-      ${ej.p?'<input class="kg" type="number" inputmode="decimal" placeholder="kg" data-n="'+esc(ej.n)+'" value="'+esc((perfil.pesos||{})[ej.n]||"")+'">':""}
+
+  ${!reg && mio ? `
+  <div class="card">
+    <h2>¿Qué toca?</h2>
+    <div class="seg" style="margin:10px 0">
+      ${["A","B","C"].map(d=>`<button data-d="${d}" class="${diaGym===d?"on":""}">Día ${d}${d==="C"?'<br><small>opcional</small>':""}</button>`).join("")}
+    </div>
+    <p class="muted" style="margin-bottom:10px">${NOTAS_DIA[diaGym]}</p>
+    ${(rut[diaGym]||[]).filter(id=>BIB[id]).map(id=>'<p class="pt" style="cursor:pointer" data-ficha="'+id+'">• '+BIB[id].n+' <span class="muted">'+BIB[id].s+'</span></p>').join("")}
+    <div style="margin-top:12px"><button class="btn green" id="g-empezar">🏋️ Empezar sesión (Día ${diaGym})</button></div>
+  </div>` : ""}
+
+  ${!reg && !mio ? '<div class="card"><p class="muted">'+esc(parejaPerfil?parejaPerfil.nombre:"Tu pareja")+' no entrenó este día 😴</p></div>' : ""}
+
+  ${reg ? `
+  <div class="card" style="padding-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>Día ${sesionG.dia} · ${done}/${reg.ejercicios.length}</h2>
+      ${mio?'<button id="g-rehacer" style="background:none;border:0;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;text-decoration:underline">🔄 rehacer con mi rutina actual</button>':""}
+    </div>
+  </div>
+  ${reg.ejercicios.map((x,i)=>{
+    const e = BIB[x.id] || {n:x.id, s:"", p:1};
+    return `<div class="ej ${x.hecho?"done":""}">
+      ${mio?'<button class="chk" data-i="'+i+'">'+(x.hecho?"✓":"")+'</button>':'<div class="chk" style="display:flex;align-items:center;justify-content:center;'+(x.hecho?"background:var(--green);":"")+'">'+(x.hecho?"✓":"")+'</div>'}
+      <div class="body" style="cursor:pointer" data-ficha="${x.id}">
+        <p class="nm">${e.n} 📖</p>
+        <p class="muted">${e.s}</p>
+      </div>
+      ${e.p ? (mio
+        ? '<input class="kg" type="number" inputmode="decimal" placeholder="kg" data-i="'+i+'" value="'+esc(x.kg||"")+'">'
+        : '<div style="display:flex;align-items:center;padding-right:12px;font-weight:800;font-size:14px">'+(x.kg?esc(x.kg)+" kg":"")+'</div>') : ""}
     </div>`;
   }).join("")}
-  <p class="muted" style="margin-top:4px">${done}/${rut.ejercicios.length} ejercicios · el peso que apuntes se guarda para la próxima sesión</p>
-  ${done===rut.ejercicios.length?'<div class="ok">💪 Sesión completada, máquina (+15 pts)</div>':""}`;
+  ${done===reg.ejercicios.length && reg.ejercicios.length ? '<div class="ok">💪 Sesión completada'+(mio?", máquina":"")+' (+15 pts)</div>' : ""}
+  ${mio?'<p class="muted" style="margin-top:8px">Toca el nombre de un ejercicio para ver cómo se hace 📖 · los kg quedan registrados en este día</p>':""}
+  ` : ""}
+
+  ${mio?'<button class="btn sec sm" id="g-editar" style="margin-top:10px">✏️ Editar mi rutina</button>':""}`;
 
   document.getElementById("btn-ajustes").onclick = renderAjustes;
-  document.querySelectorAll(".seg button[data-d]").forEach(b=>b.onclick=()=>{diaGym=b.dataset.d; guardarGymHoy(); puntosCache=null; render();});
-  document.querySelectorAll(".chk").forEach(b=>b.onclick=()=>{
-    const k=diaGym+"-"+b.dataset.i; hechos[k]=!hechos[k]; guardarGymHoy(); puntosCache=null; render();
+  document.getElementById("g-prev").onclick = async ()=>{ fechaGym = addDias(fechaGym,-1); await cargarGymDia(); render(); };
+  const gn = document.getElementById("g-next");
+  if(gn) gn.onclick = async ()=>{ fechaGym = addDias(fechaGym,1); await cargarGymDia(); render(); };
+  const gy = document.getElementById("g-yo"), gp = document.getElementById("g-pareja");
+  if(gy) gy.onclick = async ()=>{ gymUser = uid; await cargarGymDia(); render(); };
+  if(gp) gp.onclick = async ()=>{ gymUser = parejaPerfil.user_id; await cargarGymDia(); render(); };
+  document.querySelectorAll("[data-ficha]").forEach(el=>el.onclick=(ev)=>{ ev.stopPropagation(); renderFicha(el.dataset.ficha); });
+
+  if(!mio) return;
+  document.querySelectorAll(".seg button[data-d]").forEach(b=>b.onclick=()=>{diaGym=b.dataset.d; render();});
+  const ge = document.getElementById("g-empezar");
+  if(ge) ge.onclick = async ()=>{
+    sesionG = {dia:diaGym, registro: crearRegistro(diaGym)};
+    await guardarSesion(); puntosCache=null; render();
+  };
+  const gr = document.getElementById("g-rehacer");
+  if(gr) gr.onclick = async ()=>{
+    if(!confirm("¿Rehacer esta sesión con tu rutina actual? Se pierden los checks y kg de este día.")) return;
+    sesionG = {dia:sesionG.dia, registro: crearRegistro(sesionG.dia)};
+    await guardarSesion(); puntosCache=null; render();
+  };
+  document.querySelectorAll(".chk").forEach(b=>{ if(b.tagName==="BUTTON") b.onclick = async ()=>{
+    const x = sesionG.registro.ejercicios[parseInt(b.dataset.i)];
+    x.hecho = !x.hecho;
+    await guardarSesion(); puntosCache=null; render();
+  };});
+  document.querySelectorAll(".kg").forEach(inp=>inp.onchange = async ()=>{
+    const x = sesionG.registro.ejercicios[parseInt(inp.dataset.i)];
+    x.kg = inp.value;
+    perfil.pesos = perfil.pesos||{}; perfil.pesos[x.id] = inp.value;
+    await guardarSesion(); await guardarPesos();
   });
-  document.querySelectorAll(".kg").forEach(inp=>{
-    inp.onchange=()=>{ perfil.pesos = perfil.pesos||{}; perfil.pesos[inp.dataset.n]=inp.value; guardarPesos(); };
-  });
+  const ged = document.getElementById("g-editar");
+  if(ged) ged.onclick = ()=>{ modoEditar=true; render(); };
+}
+
+/* ---------- ficha de ejercicio ---------- */
+function renderFicha(id){
+  const e = BIB[id]; if(!e) return;
+  const ov = document.createElement("div");
+  ov.className = "overlay";
+  ov.innerHTML = `
+  <div class="sheet">
+    <h2>${e.n}</h2>
+    <p class="muted" style="margin:2px 0 10px">${e.m} · ${e.s}</p>
+    <img src="img/${id}.gif" style="width:100%;border-radius:14px;background:#f2efe9" onerror="this.outerHTML='<div style=&quot;background:#f2efe9;border-radius:14px;padding:40px;text-align:center;font-size:44px&quot;>💪<p style=&quot;font-size:13px;color:#78716c;margin-top:6px&quot;>GIF pendiente de añadir (img/${id}.gif)</p></div>'">
+    <div style="margin-top:12px">
+      ${e.tips.map(t=>'<p class="pt">✅ '+t+'</p>').join("")}
+    </div>
+    <div style="margin-top:14px"><button class="btn sec sm" id="fi-x">Cerrar</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.onclick = ev => { if(ev.target===ov) ov.remove(); };
+  ov.querySelector("#fi-x").onclick = ()=>ov.remove();
 }
 
 /* ---------- puntos ---------- */
@@ -1038,7 +1226,7 @@ async function calcularPuntos(){
   const [{data:ps},{data:coms},{data:gyms}] = await Promise.all([
     sb.from("pastanaga_perfiles").select("user_id,nombre,peso,objetivo"),
     sb.from("pastanaga_comidas").select("user_id,fecha,kcal,proteina,borrada"),
-    sb.from("pastanaga_gym").select("user_id,fecha,dia,hechos"),
+    sb.from("pastanaga_gym").select("user_id,fecha,dia,hechos,registro"),
   ]);
   const H = hoy();
   return (ps||[]).map(p=>{
@@ -1059,8 +1247,13 @@ async function calcularPuntos(){
     });
     let sesiones = 0;
     (gyms||[]).filter(g=>g.user_id===p.user_id).forEach(g=>{
-      const n = Object.entries(g.hechos||{}).filter(([k,v])=>v && k.startsWith(g.dia+"-")).length;
-      if(n >= 5){ pts += 15; sesiones++; }
+      let completo = false;
+      if(g.registro?.ejercicios?.length) completo = g.registro.ejercicios.every(x=>x.hecho);
+      else {
+        const n = Object.entries(g.hechos||{}).filter(([k,v])=>v && k.startsWith(g.dia+"-")).length;
+        completo = n >= 5;
+      }
+      if(completo){ pts += 15; sesiones++; }
     });
     let racha = 0, f = porDia[H] ? H : addDias(H,-1);
     while(porDia[f]){ racha++; f = addDias(f,-1); }
@@ -1163,7 +1356,7 @@ function renderAjustes(){
   if(session){
     uid = session.user.id;
     await cargarPerfiles();
-    if(perfil){ await cargarDia(); await cargarGymHoy(); await cargarCompartidas(); }
+    if(perfil){ gymUser = uid; await cargarDia(); await cargarGymDia(); await cargarCompartidas(); }
   }
   render();
 })();
