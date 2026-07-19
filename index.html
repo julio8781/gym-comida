@@ -204,6 +204,12 @@ const NOTAS_DIA = {
   C:"Día opcional · cardio + core + brazos · si solo puedes 2 días, sáltalo sin culpa",
 };
 const rutinaDe = p => (p && p.rutina) || RUTINA_DEF;
+const NOMBRES_DEF = {A:"Full body 1", B:"Full body 2", C:"Cardio y brazos"};
+const nombreRutina = (p,k) => (p && p.rutina && p.rutina.nombres && p.rutina.nombres[k]) || NOMBRES_DEF[k];
+function materializarRutina(){
+  if(!perfil.rutina) perfil.rutina = JSON.parse(JSON.stringify(RUTINA_DEF));
+  if(!perfil.rutina.nombres) perfil.rutina.nombres = {...NOMBRES_DEF};
+}
 
 /* ============ Gemini ============ */
 const MODELO = "gemini-flash-latest";
@@ -1057,8 +1063,12 @@ function renderGym(){
     const ids = (rut[diaGym]||[]).filter(id=>BIB[id]);
     app.innerHTML = `
     <div class="topbar"><h1>Mi rutina ✏️</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
-    <div class="seg" style="margin-bottom:12px">
-      ${["A","B","C"].map(d=>`<button data-d="${d}" class="${diaGym===d?"on":""}">Día ${d}</button>`).join("")}
+    <div class="seg" style="margin-bottom:10px">
+      ${["A","B","C"].map(d=>`<button data-d="${d}" class="${diaGym===d?"on":""}" style="font-size:12px">${esc(nombreRutina(perfil,d))}</button>`).join("")}
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <input type="text" id="ed-nombre" value="${esc(nombreRutina(perfil,diaGym))}" maxlength="24">
+      <button class="btn sm" style="flex:0 0 100px" id="ed-ren">Renombrar</button>
     </div>
     <p class="muted" style="margin-bottom:12px">${NOTAS_DIA[diaGym]}</p>
     ${ids.map(id=>`
@@ -1085,15 +1095,20 @@ function renderGym(){
 
     document.getElementById("btn-ajustes").onclick = renderAjustes;
     document.querySelectorAll(".seg button[data-d]").forEach(b=>b.onclick=()=>{diaGym=b.dataset.d; render();});
+    document.getElementById("ed-ren").onclick = async ()=>{
+      const n = document.getElementById("ed-nombre").value.trim(); if(!n) return;
+      materializarRutina(); perfil.rutina.nombres[diaGym] = n;
+      await guardarRutina(); render();
+    };
     document.querySelectorAll(".ed-del").forEach(b=>b.onclick=async ()=>{
-      perfil.rutina = JSON.parse(JSON.stringify(rut));
+      materializarRutina();
       perfil.rutina[diaGym] = perfil.rutina[diaGym].filter(x=>x!==b.dataset.id);
       await guardarRutina(); render();
     });
     document.getElementById("ed-add").onclick = ()=>{bibAbierta=true; render();};
     document.getElementById("ed-fin").onclick = ()=>{modoEditar=false; bibAbierta=false; render();};
     document.querySelectorAll(".bib-add").forEach(b=>b.onclick=async ()=>{
-      perfil.rutina = JSON.parse(JSON.stringify(rut));
+      materializarRutina();
       perfil.rutina[diaGym].push(b.dataset.id);
       await guardarRutina(); render();
     });
@@ -1127,13 +1142,13 @@ function renderGym(){
 
   ${!reg && mio ? `
   <div class="card">
-    <h2>¿Qué toca?</h2>
+    <h2>¿Qué rutina toca?</h2>
     <div class="seg" style="margin:10px 0">
-      ${["A","B","C"].map(d=>`<button data-d="${d}" class="${diaGym===d?"on":""}">Día ${d}${d==="C"?'<br><small>opcional</small>':""}</button>`).join("")}
+      ${["A","B","C"].map(d=>`<button data-d="${d}" class="${diaGym===d?"on":""}" style="font-size:12px">${esc(nombreRutina(perfil,d))}</button>`).join("")}
     </div>
     <p class="muted" style="margin-bottom:10px">${NOTAS_DIA[diaGym]}</p>
     ${(rut[diaGym]||[]).filter(id=>BIB[id]).map(id=>'<p class="pt" style="cursor:pointer" data-ficha="'+id+'">• '+BIB[id].n+' <span class="muted">'+BIB[id].s+'</span></p>').join("")}
-    <div style="margin-top:12px"><button class="btn green" id="g-empezar">🏋️ Empezar sesión (Día ${diaGym})</button></div>
+    <div style="margin-top:12px"><button class="btn green" id="g-empezar">🏋️ Empezar: ${esc(nombreRutina(perfil,diaGym))}</button></div>
   </div>` : ""}
 
   ${!reg && !mio ? '<div class="card"><p class="muted">'+esc(parejaPerfil?parejaPerfil.nombre:"Tu pareja")+' no entrenó este día 😴</p></div>' : ""}
@@ -1141,7 +1156,7 @@ function renderGym(){
   ${reg ? `
   <div class="card" style="padding-bottom:10px">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <h2>Día ${sesionG.dia} · ${done}/${reg.ejercicios.length}</h2>
+      <h2>${esc(nombreRutina(mio?perfil:parejaPerfil, sesionG.dia))} · ${done}/${reg.ejercicios.length}</h2>
       ${mio?'<button id="g-rehacer" style="background:none;border:0;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;text-decoration:underline">🔄 rehacer con mi rutina actual</button>':""}
     </div>
   </div>
