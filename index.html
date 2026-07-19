@@ -108,7 +108,7 @@
 <div id="app" class="wrap"></div>
 <nav class="nav hide" id="nav">
   <button data-v="diario"><span class="ico">📔</span>Diario</button>
-  <button data-v="escaner"><span class="ico">🔍</span>Escáner</button>
+  <button data-v="compra"><span class="ico">🛒</span>Compra</button>
   <button data-v="gym"><span class="ico">🏋️</span>Gym</button>
   <button data-v="puntos"><span class="ico">🏆</span>Puntos</button>
 </nav>
@@ -145,6 +145,10 @@ let entAbierta = null;     // id de la entrada desplegada
 let sugerencias = null;    // opciones de "¿Qué ceno?"
 let sugPrevias = [];       // nombres ya sugeridos (para no repetir)
 let semana = null;         // balance de los últimos 7 días
+let subCompra = "lista";   // sub-pestaña de Compra: lista | despensa | escaner
+let lista = [];            // lista de la compra compartida
+let despensa = [];         // despensa compartida
+let ticketPend = null;     // artículos leídos del ticket, pendientes de confirmar
 let diaGym = "A", hechos = {};
 let obTmp = {sexo:"h", ritmo:"400"};
 let puntosCache = null;
@@ -178,6 +182,8 @@ const RUTINAS = {
 const MODELO = "gemini-flash-latest";
 const P_COMIDA = 'Eres un nutricionista. Analiza la comida y estima calorías y macros de forma realista para raciones típicas en España. Responde SOLO con JSON válido, sin markdown ni backticks ni texto extra, estructura exacta: {"alimentos":[{"nombre":"","kcal":0,"proteina_g":0,"carbs_g":0,"grasa_g":0}],"total_kcal":0,"comentario":"máx 15 palabras, tono cercano"}. Si no hay comida reconocible: {"alimentos":[],"total_kcal":0,"comentario":"No veo comida ahí"}';
 const P_PRODUCTO = 'Eres un nutricionista que evalúa productos de supermercado al estilo de la app Yuka. Analiza la foto del producto (envase, ingredientes o tabla nutricional). Valora azúcares, grasas saturadas, sal, aditivos, ultraprocesado y calidad de ingredientes. Responde SOLO con JSON válido sin markdown: {"nombre":"","puntuacion":0,"nivel":"malo|mediocre|bueno|excelente","positivos":["hasta 3, cortos"],"negativos":["hasta 3, cortos"],"alternativa":"alternativa más sana de súper español o vacío","kcal_100g":0}. Puntuación 0-100: 0-24 malo, 25-49 mediocre, 50-74 bueno, 75-100 excelente. Si no reconoces producto: {"nombre":"","puntuacion":-1,"nivel":"","positivos":[],"negativos":[],"alternativa":"","kcal_100g":0}';
+
+const P_TICKET = 'Lee este ticket de supermercado. Devuelve SOLO JSON válido sin markdown: {"articulos":["nombre corto y normalizado",...]}. Solo los artículos (comida y productos), sin precios ni cantidades, nombres cortos tipo "Pechuga de pollo", "Yogur griego". Si la imagen no es un ticket: {"articulos":[]}';
 
 async function pedirSugerencias(rest, protFalta){
   const evitar = sugPrevias.length ? ' NO repitas ni propongas nada parecido a estas ya sugeridas: '+sugPrevias.join(", ")+'.' : '';
@@ -275,6 +281,13 @@ async function guardarPesos(){
   const {error} = await sb.from("pastanaga_perfiles").update({pesos:perfil.pesos}).eq("user_id",uid);
   if(error){ errorMsg = "No se guardaron los pesos: "+error.message; }
 }
+async function cargarCompra(){
+  const [{data:l},{data:d}] = await Promise.all([
+    sb.from("pastanaga_lista").select().order("id"),
+    sb.from("pastanaga_despensa").select().order("nombre"),
+  ]);
+  lista = l || []; despensa = d || [];
+}
 
 /* ============ render ============ */
 const app = document.getElementById("app");
@@ -282,6 +295,7 @@ const nav = document.getElementById("nav");
 nav.querySelectorAll("button").forEach(b=>b.onclick=async ()=>{
   vista=b.dataset.v; errorMsg="";
   if(vista==="diario"){ await cargarDia(); await cargarCompartidas(); }
+  if(vista==="compra"){ await cargarCompra(); }
   render();
 });
 
@@ -292,7 +306,7 @@ function render(){
   nav.classList.remove("hide");
   nav.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===vista));
   if(vista==="diario") renderDiario();
-  else if(vista==="escaner") renderEscaner();
+  else if(vista==="compra") renderCompra();
   else if(vista==="gym") renderGym();
   else renderPuntos();
 }
@@ -719,17 +733,80 @@ async function analizar(parts, tipo){
   cargando=false; render();
 }
 
-/* ---------- escáner ---------- */
-function renderEscaner(){
+/* ---------- compra (lista + despensa + escáner) ---------- */
+function renderCompra(){
   const NIV = {excelente:["var(--green)","Excelente"],bueno:["var(--lime)","Bueno"],mediocre:["var(--orange)","Mediocre"],malo:["var(--red)","Malo"]};
   const nv = producto ? (NIV[producto.nivel]||NIV.mediocre) : null;
+  const fijos = lista.filter(x=>x.fijo);
+  const sueltos = lista.filter(x=>!x.fijo);
+  const filaItem = x => `
+    <div class="entry" style="align-items:center;padding:9px 0">
+      <button class="li-chk" data-id="${x.id}" style="width:30px;height:30px;flex-shrink:0;margin-right:10px;border-radius:9px;border:2px solid ${x.comprado?"#c8e6cf":"var(--line)"};background:${x.comprado?"var(--green-soft)":"#fff"};color:var(--green);font-weight:800;cursor:pointer">${x.comprado?"✓":""}</button>
+      <p style="flex:1;font-size:15px;${x.fijo?"font-weight:800;":""}${x.comprado?"color:#c7c2bb;text-decoration:line-through;":""}">${esc(x.nombre)}</p>
+      <button class="li-fijo" data-id="${x.id}" style="background:none;border:0;font-size:18px;cursor:pointer;padding:4px;opacity:${x.fijo?1:.35}">⭐</button>
+      ${x.fijo?"":'<button class="li-del" data-id="'+x.id+'" style="background:none;border:0;font-size:15px;cursor:pointer;padding:4px">🗑</button>'}
+    </div>`;
+
   app.innerHTML = `
-  <div class="topbar"><h1>Escáner 🔍</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
+  <div class="topbar"><h1>Compra 🛒</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
+  <div class="seg" style="margin-bottom:12px">
+    <button data-s="lista" class="${subCompra==="lista"?"on":""}">📝 Lista</button>
+    <button data-s="despensa" class="${subCompra==="despensa"?"on":""}">🧊 Despensa</button>
+    <button data-s="escaner" class="${subCompra==="escaner"?"on":""}">🔍 Escáner</button>
+  </div>
+  ${errorMsg?'<div class="err" style="margin-bottom:10px">⚠ '+esc(errorMsg)+'</div>':""}
+
+  ${subCompra==="lista" ? `
+  <div class="card">
+    <div class="row">
+      <input type="text" id="li-nuevo" placeholder="Añadir a la lista…">
+      <button class="btn sm" style="flex:0 0 54px" id="li-add">+</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn sec sm" id="li-sugerir" ${cargando?"disabled":""}>${cargando?'<span class="spin" style="border-color:rgba(0,0,0,.15);border-top-color:var(--ink)"></span>Pensando…':"🧠 Sugerir básicos"}</button>
+      <button class="btn sec sm" id="li-reset">🔄 Nueva compra</button>
+    </div>
+    <p class="muted" style="margin-top:8px">⭐ = básico: nunca se borra, al comprarlo se pone en gris. "Nueva compra" reactiva todos los básicos y limpia lo suelto ya comprado.</p>
+  </div>
+  ${fijos.length ? '<div class="card"><h2>Básicos ⭐</h2>'+fijos.map(filaItem).join("")+'</div>' : ""}
+  ${sueltos.length ? '<div class="card"><h2>Lo demás</h2>'+sueltos.map(filaItem).join("")+'</div>' : ""}
+  ${!lista.length ? '<div class="card"><p class="muted">Lista vacía. Añade cosas a mano o dale a 🧠 Sugerir básicos y te propongo la compra base para tu proteína.</p></div>' : ""}
+  ` : ""}
+
+  ${subCompra==="despensa" ? `
+  <div class="card">
+    <input type="file" accept="image/*" capture="environment" id="fticket" class="hide">
+    <button class="btn" id="btn-ticket" ${cargando?"disabled":""}>${cargando?'<span class="spin"></span>Leyendo ticket…':"🧾 Foto al ticket"}</button>
+    <p class="muted" style="margin-top:8px">Foto al ticket del súper y meto lo comprado en la despensa yo solo. También puedes añadir a mano:</p>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="de-nuevo" placeholder="Añadir a la despensa…">
+      <button class="btn sm" style="flex:0 0 54px" id="de-add">+</button>
+    </div>
+  </div>
+  ${ticketPend ? `
+  <div class="card" style="border:2px solid var(--carrot);background:var(--carrot-soft)">
+    <h2>🧾 He leído esto:</h2>
+    ${ticketPend.map(n=>'<div class="entry"><span>'+esc(n)+'</span></div>').join("")}
+    <div class="row" style="margin-top:12px">
+      <button class="btn green sm" id="tk-si">✓ Meter en despensa</button>
+      <button class="btn sec sm" id="tk-no">Descartar</button>
+    </div>
+  </div>` : ""}
+  <div class="card">
+    <h2>En casa hay</h2>
+    ${despensa.length ? despensa.map(d=>`
+    <div class="entry" style="align-items:center">
+      <p style="flex:1;font-size:15px;font-weight:600">${esc(d.nombre)}</p>
+      <button class="de-fin" data-id="${d.id}" data-n="${esc(d.nombre)}" style="border:2px solid var(--line);background:#fff;border-radius:10px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer">se acabó → 📝</button>
+    </div>`).join("") : '<p class="muted" style="margin-top:8px">Despensa vacía. Foto al primer ticket y se llena sola.</p>'}
+  </div>
+  ` : ""}
+
+  ${subCompra==="escaner" ? `
   <div class="card">
     <p class="muted" style="margin-bottom:12px">Hazle foto a un producto del súper — mejor a la etiqueta de ingredientes o la tabla nutricional — y te digo si merece la pena o es un ultraprocesado disfrazado.</p>
     <input type="file" accept="image/*" capture="environment" id="fprod" class="hide">
     <button class="btn" id="btn-prod" ${cargando?"disabled":""}>${cargando?'<span class="spin"></span>Analizando…':"🔍 Escanear producto"}</button>
-    <div>${errorMsg?'<div class="err">⚠ '+esc(errorMsg)+'</div>':""}</div>
   </div>
   ${producto&&nv ? `
   <div class="card" style="padding:0;overflow:hidden">
@@ -744,15 +821,116 @@ function renderEscaner(){
       ${producto.alternativa?'<div class="alt"><b>💡 Alternativa mejor</b><br>'+esc(producto.alternativa)+'</div>':""}
       <div style="margin-top:14px"><button class="btn sec sm" id="btn-otro">Escanear otro</button></div>
     </div>
-  </div>`:""}`;
+  </div>`:""}
+  ` : ""}`;
+
   document.getElementById("btn-ajustes").onclick = renderAjustes;
-  const fi = document.getElementById("fprod");
-  document.getElementById("btn-prod").onclick = ()=>fi.click();
-  fi.onchange = async e => {
-    const f = e.target.files[0]; if(!f) return; e.target.value=""; producto=null;
-    let b64=null; try{ b64 = await redimensionar(f); }catch(x){}
-    await analizar([{inline_data:{mime_type:"image/jpeg",data:b64}},{text:P_PRODUCTO}], "producto");
+  document.querySelectorAll(".seg button[data-s]").forEach(b=>b.onclick=()=>{subCompra=b.dataset.s; errorMsg=""; render();});
+
+  /* --- lista --- */
+  const liAdd = document.getElementById("li-add");
+  if(liAdd){
+    const anadir = async ()=>{
+      const inp = document.getElementById("li-nuevo");
+      const n = inp.value.trim(); if(!n) return;
+      const {error} = await sb.from("pastanaga_lista").insert({nombre:n});
+      if(error){ errorMsg = error.message; } else await cargarCompra();
+      render();
+    };
+    liAdd.onclick = anadir;
+    document.getElementById("li-nuevo").onkeydown = e=>{ if(e.key==="Enter") anadir(); };
+    document.getElementById("li-sugerir").onclick = async ()=>{
+      errorMsg=""; cargando=true; render();
+      try{
+        const r = await gemini([{text:'Lista base de la compra para alguien que quiere perder grasa y llegar a '+protObjetivo(perfil)+' g de proteína al día, comprando en un supermercado español (tipo Mercadona). Entre 10 y 14 artículos, nombres cortos, prioriza fuentes de proteína baratas y cosas fáciles de cocinar. Responde SOLO JSON válido sin markdown: {"articulos":["Pechuga de pollo","Huevos",...]}'}]);
+        const existentes = lista.map(x=>x.nombre.toLowerCase());
+        const nuevos = (r.articulos||[]).filter(n=>!existentes.includes(String(n).toLowerCase()));
+        if(nuevos.length) await sb.from("pastanaga_lista").insert(nuevos.map(n=>({nombre:n, fijo:true})));
+        await cargarCompra();
+      }catch(e){ errorMsg = e.message || "No pude sugerir, prueba otra vez"; }
+      cargando=false; render();
+    };
+    document.getElementById("li-reset").onclick = async ()=>{
+      if(!confirm("¿Preparar la próxima compra? Reactiva todos los básicos ⭐ y borra lo suelto ya comprado.")) return;
+      await sb.from("pastanaga_lista").update({comprado:false}).eq("fijo",true);
+      await sb.from("pastanaga_lista").delete().eq("fijo",false).eq("comprado",true);
+      await cargarCompra(); render();
+    };
+  }
+  document.querySelectorAll(".li-chk").forEach(b=>b.onclick=async ()=>{
+    const x = lista.find(i=>i.id===parseInt(b.dataset.id)); if(!x) return;
+    await sb.from("pastanaga_lista").update({comprado:!x.comprado}).eq("id",x.id);
+    x.comprado = !x.comprado; render();
+  });
+  document.querySelectorAll(".li-fijo").forEach(b=>b.onclick=async ()=>{
+    const x = lista.find(i=>i.id===parseInt(b.dataset.id)); if(!x) return;
+    await sb.from("pastanaga_lista").update({fijo:!x.fijo}).eq("id",x.id);
+    x.fijo = !x.fijo; render();
+  });
+  document.querySelectorAll(".li-del").forEach(b=>b.onclick=async ()=>{
+    await sb.from("pastanaga_lista").delete().eq("id",parseInt(b.dataset.id));
+    lista = lista.filter(i=>i.id!==parseInt(b.dataset.id)); render();
+  });
+
+  /* --- despensa --- */
+  const deAdd = document.getElementById("de-add");
+  if(deAdd){
+    const anadirD = async ()=>{
+      const inp = document.getElementById("de-nuevo");
+      const n = inp.value.trim(); if(!n) return;
+      const {error} = await sb.from("pastanaga_despensa").insert({nombre:n});
+      if(error){ errorMsg = error.message; } else await cargarCompra();
+      render();
+    };
+    deAdd.onclick = anadirD;
+    document.getElementById("de-nuevo").onkeydown = e=>{ if(e.key==="Enter") anadirD(); };
+    const ft = document.getElementById("fticket");
+    document.getElementById("btn-ticket").onclick = ()=>ft.click();
+    ft.onchange = async e => {
+      const f = e.target.files[0]; if(!f) return; e.target.value="";
+      errorMsg=""; cargando=true; render();
+      try{
+        const b64 = await redimensionar(f);
+        const r = await gemini([{inline_data:{mime_type:"image/jpeg",data:b64}},{text:P_TICKET}]);
+        if(!r.articulos?.length) errorMsg = "No he podido leer artículos en esa foto. Enfoca el ticket entero.";
+        else ticketPend = r.articulos;
+      }catch(x){ errorMsg = x.message || "Error leyendo el ticket"; }
+      cargando=false; render();
+    };
+  }
+  const tkSi = document.getElementById("tk-si");
+  if(tkSi) tkSi.onclick = async ()=>{
+    await sb.from("pastanaga_despensa").insert(ticketPend.map(n=>({nombre:n})));
+    // marcar como comprados los de la lista que coincidan
+    const comprados = lista.filter(x=>!x.comprado && ticketPend.some(n=>{
+      const a = String(n).toLowerCase(), b = x.nombre.toLowerCase();
+      return a.includes(b) || b.includes(a);
+    }));
+    for(const x of comprados) await sb.from("pastanaga_lista").update({comprado:true}).eq("id",x.id);
+    ticketPend = null; await cargarCompra(); render();
   };
+  const tkNo = document.getElementById("tk-no");
+  if(tkNo) tkNo.onclick = ()=>{ ticketPend=null; render(); };
+  document.querySelectorAll(".de-fin").forEach(b=>b.onclick=async ()=>{
+    const id = parseInt(b.dataset.id), nombre = b.dataset.n;
+    // si ya existe en la lista (ej. un básico), se reactiva; si no, se crea
+    const ya = lista.find(x=>x.nombre.toLowerCase()===nombre.toLowerCase());
+    if(ya) await sb.from("pastanaga_lista").update({comprado:false}).eq("id",ya.id);
+    else await sb.from("pastanaga_lista").insert({nombre});
+    await sb.from("pastanaga_despensa").delete().eq("id",id);
+    await cargarCompra(); render();
+  });
+
+  /* --- escáner --- */
+  const fi = document.getElementById("fprod");
+  if(fi){
+    document.getElementById("btn-prod").onclick = ()=>fi.click();
+    fi.onchange = async e => {
+      const f = e.target.files[0]; if(!f) return; e.target.value=""; producto=null;
+      let b64=null; try{ b64 = await redimensionar(f); }catch(x){}
+      await analizar([{inline_data:{mime_type:"image/jpeg",data:b64}},{text:P_PRODUCTO}], "producto");
+    };
+  }
   const bo = document.getElementById("btn-otro");
   if(bo) bo.onclick = ()=>{producto=null; render();};
 }
