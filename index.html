@@ -117,7 +117,7 @@
 /* ================================================================
    CONFIGURACIÓN — pega aquí los datos de tu proyecto de Supabase
 ================================================================ */
-const SB_URL = "https://kepdacdtqffhkhaswqsk.supabase.co";        
+const SB_URL = "https://kepdacdtqffhkhaswqsk.supabase.co";
 const SB_KEY = "sb_publishable_6a4q6zi8Uojdg-GmWCflGg_66FiNDNE";
 /* ================================================================ */
 
@@ -140,6 +140,8 @@ let entradas = [];
 let vista = "diario";
 let pendiente = null, producto = null, cargando = false, errorMsg = "";
 let fotoPend = null;   // base64 de la foto pendiente de confirmar
+let compartidasPend = [];  // comidas que la pareja te ha compartido
+let entAbierta = null;     // id de la entrada desplegada
 let diaGym = "A", hechos = {};
 let obTmp = {sexo:"h", ritmo:"400"};
 let puntosCache = null;
@@ -235,6 +237,11 @@ async function cargarDia(){
     .eq("user_id",verUser).eq("fecha",fechaSel).order("id");
   entradas = c || [];
 }
+async function cargarCompartidas(){
+  if(!parejaPerfil){ compartidasPend = []; return; }
+  const {data} = await sb.from("pastanaga_compartidas").select().eq("para_user",uid).order("id");
+  compartidasPend = data || [];
+}
 async function cargarGymHoy(){
   const {data:g} = await sb.from("pastanaga_gym").select().eq("user_id",uid).eq("fecha",hoy()).maybeSingle();
   if(g){ diaGym = g.dia; hechos = g.hechos || {}; }
@@ -253,7 +260,7 @@ const app = document.getElementById("app");
 const nav = document.getElementById("nav");
 nav.querySelectorAll("button").forEach(b=>b.onclick=async ()=>{
   vista=b.dataset.v; errorMsg="";
-  if(vista==="diario"){ await cargarDia(); }
+  if(vista==="diario"){ await cargarDia(); await cargarCompartidas(); }
   render();
 });
 
@@ -303,7 +310,7 @@ function renderLogin(){
     const {data, error} = await sb.auth.signInWithPassword({email, password:pass});
     if(error){ b.disabled=false; b.textContent="Entrar"; return err(error.message.includes("Invalid")?"Email o contraseña incorrectos":error.message); }
     uid = data.user.id;
-    await cargarPerfiles(); if(perfil){ await cargarDia(); await cargarGymHoy(); }
+    await cargarPerfiles(); if(perfil){ await cargarDia(); await cargarGymHoy(); await cargarCompartidas(); }
     render();
   };
   document.getElementById("lg-nuevo").onclick = async ()=>{
@@ -450,6 +457,22 @@ function renderDiario(){
     </div>
   </div>
 
+  ${mio && compartidasPend.length ? compartidasPend.map(c=>`
+  <div class="card" style="border:2px solid #eab308;background:#fefce8">
+    <h2>💛 ${esc(c.de_nombre||"Tu pareja")} compartió una comida</h2>
+    <div class="entry" style="border-bottom:0">
+      ${c.foto_url?'<img src="'+esc(c.foto_url)+'" style="width:52px;height:52px;object-fit:cover;border-radius:10px;margin-right:10px;flex-shrink:0">':""}
+      <div style="flex:1">
+        <p style="font-weight:700;font-size:14px">${(c.alimentos||[]).map(a=>esc(a.nombre)).join(", ")}</p>
+        <p class="muted">${c.kcal} kcal · ${Math.round(c.proteina||0)}g proteína · día ${c.fecha}</p>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn green sm ac-si" data-id="${c.id}">✓ Yo también la comí</button>
+      <button class="btn sec sm ac-no" data-id="${c.id}">No, gracias</button>
+    </div>
+  </div>`).join("") : ""}
+
   ${mio ? `
   <div class="card">
     <input type="file" accept="image/*" capture="environment" id="foto" class="hide">
@@ -475,25 +498,45 @@ function renderDiario(){
     ${pendiente.comentario?'<p class="muted" style="font-style:italic;margin-top:6px">"'+esc(pendiente.comentario)+'"</p>':""}
     <div class="row" style="margin-top:12px">
       <button class="btn green sm" id="btn-add">✓ Añadir</button>
-      <button class="btn sec sm" id="btn-no">Descartar</button>
+      ${parejaPerfil?'<button class="btn sm" id="btn-add2" style="background:#eab308">💛 Añadir y compartir</button>':""}
     </div>
+    <div style="margin-top:8px"><button class="btn sec sm" id="btn-no">Descartar</button></div>
   </div>` : ""}
 
   <div class="card">
     <h2>${mio ? "Diario" : "Su diario"} ${esHoy ? "de hoy" : "del día"}</h2>
     ${entradas.length===0 ? '<p class="muted" style="margin-top:8px">'+(mio?"Nada registrado este día.":"No registró nada este día.")+'</p>'
-      : entradas.map(e=>`
-      <div class="entry">
-        ${e.foto_url?'<a href="'+esc(e.foto_url)+'" target="_blank" style="flex-shrink:0;margin-right:10px"><img src="'+esc(e.foto_url)+'" style="width:52px;height:52px;object-fit:cover;border-radius:10px"></a>':""}
-        <div style="flex:1;padding-right:10px">
-          <p class="muted">${esc(e.hora)}</p>
-          <p style="font-weight:700;font-size:14px">${(e.alimentos||[]).map(a=>esc(a.nombre)).join(", ")}</p>
+      : entradas.map(e=>{
+        const ab = entAbierta===e.id;
+        return `
+      <div class="entcaja" data-ent="${e.id}" style="border-bottom:1px solid var(--line);cursor:pointer">
+        <div class="entry" style="border-bottom:0">
+          ${e.foto_url?'<img src="'+esc(e.foto_url)+'" style="width:52px;height:52px;object-fit:cover;border-radius:10px;margin-right:10px;flex-shrink:0">':""}
+          <div style="flex:1;padding-right:10px">
+            <p class="muted">${esc(e.hora)}</p>
+            <p style="font-weight:700;font-size:14px">${(e.alimentos||[]).map(a=>esc(a.nombre)).join(", ")}</p>
+          </div>
+          <div style="text-align:right">
+            <p style="font-weight:800">${e.kcal}</p>
+            <p class="muted" style="font-size:11px">${ab?"▲":"▼ detalle"}</p>
+          </div>
         </div>
-        <div style="text-align:right">
-          <p style="font-weight:800">${e.kcal}</p>
-          ${mio?'<button class="del" data-id="'+e.id+'">borrar</button>':""}
-        </div>
-      </div>`).join("")}
+        ${ab?`
+        <div style="padding:0 2px 14px">
+          ${e.foto_url?'<a href="'+esc(e.foto_url)+'" target="_blank"><img src="'+esc(e.foto_url)+'" style="width:100%;border-radius:12px;margin-bottom:8px"></a>':""}
+          ${(e.alimentos||[]).map(a=>`
+          <div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:5px 0;border-bottom:1px dashed var(--line)">
+            <span style="font-weight:600">${esc(a.nombre)}</span>
+            <span class="muted" style="white-space:nowrap">${a.kcal||0} kcal · P${Math.round(a.proteina_g||0)} C${Math.round(a.carbs_g||0)} G${Math.round(a.grasa_g||0)}</span>
+          </div>`).join("")}
+          <div style="margin-top:8px">
+            <span class="chip"><b>${Math.round(e.proteina||0)}g</b>proteína</span>
+            <span class="chip"><b>${Math.round(e.carbs||0)}g</b>carbos</span>
+            <span class="chip"><b>${Math.round(e.grasa||0)}g</b>grasa</span>
+          </div>
+          ${mio?'<button class="del" data-id="'+e.id+'" style="margin-top:10px">🗑 borrar esta comida</button>':""}
+        </div>`:""}
+      </div>`;}).join("")}
   </div>`;
 
   document.getElementById("btn-ajustes").onclick = renderAjustes;
@@ -501,8 +544,16 @@ function renderDiario(){
   const fn = document.getElementById("f-next");
   if(fn) fn.onclick = async ()=>{ fechaSel = addDias(fechaSel,1); await cargarDia(); render(); };
   const vy = document.getElementById("ver-yo"), vp = document.getElementById("ver-pareja");
-  if(vy) vy.onclick = async ()=>{ verUser = uid; await cargarDia(); render(); };
-  if(vp) vp.onclick = async ()=>{ verUser = parejaPerfil.user_id; await cargarDia(); render(); };
+  if(vy) vy.onclick = async ()=>{ verUser = uid; entAbierta=null; await cargarDia(); render(); };
+  if(vp) vp.onclick = async ()=>{ verUser = parejaPerfil.user_id; entAbierta=null; await cargarDia(); render(); };
+
+  // desplegar/cerrar detalle de una comida (funciona también viendo a la pareja)
+  document.querySelectorAll(".entcaja").forEach(el=>el.onclick=(ev)=>{
+    if(ev.target.closest(".del") || ev.target.closest("a")) return;
+    const id = parseInt(el.dataset.ent);
+    entAbierta = entAbierta===id ? null : id;
+    render();
+  });
 
   if(!mio) return;
   const inputFoto = document.getElementById("foto");
@@ -520,7 +571,7 @@ function renderDiario(){
     await analizar([{text:'Comida descrita por el usuario: "'+t+'"\n\n'+P_COMIDA}], "comida");
   };
   if(pendiente){
-    document.getElementById("btn-add").onclick = async ()=>{
+    const confirmarComida = async (compartir)=>{
       let foto_url = null;
       if(fotoPend){
         try{
@@ -528,11 +579,10 @@ function renderDiario(){
           const path = uid+"/"+Date.now()+".jpg";
           const {error:eUp} = await sb.storage.from("comidas").upload(path, blob, {contentType:"image/jpeg"});
           if(!eUp) foto_url = sb.storage.from("comidas").getPublicUrl(path).data.publicUrl;
-        }catch(x){ /* si falla la subida, la comida se guarda sin foto */ }
+        }catch(x){ /* sin foto si falla la subida */ }
       }
-      const fila = {
-        user_id: uid, fecha: fechaSel,
-        hora: fechaSel===hoy() ? new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}) : "—",
+      const base = {
+        fecha: fechaSel,
         alimentos: pendiente.alimentos,
         kcal: pendiente.total_kcal,
         proteina: pendiente.alimentos.reduce((s,a)=>s+(a.proteina_g||0),0),
@@ -540,12 +590,46 @@ function renderDiario(){
         grasa: pendiente.alimentos.reduce((s,a)=>s+(a.grasa_g||0),0),
         foto_url,
       };
-      const {data, error} = await sb.from("pastanaga_comidas").insert(fila).select().single();
+      const {data, error} = await sb.from("pastanaga_comidas").insert({
+        user_id: uid,
+        hora: fechaSel===hoy() ? new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}) : "—",
+        ...base,
+      }).select().single();
       if(error){ errorMsg = "No se guardó: "+error.message; render(); return; }
-      entradas.push(data); pendiente=null; fotoPend=null; puntosCache=null; render();
+      entradas.push(data);
+      if(compartir && parejaPerfil){
+        const {error:e2} = await sb.from("pastanaga_compartidas").insert({
+          de_user: uid, para_user: parejaPerfil.user_id, de_nombre: perfil.nombre, ...base,
+        });
+        if(e2) errorMsg = "Tu comida se guardó, pero no se pudo compartir: "+e2.message;
+      }
+      pendiente=null; fotoPend=null; puntosCache=null; render();
     };
+    document.getElementById("btn-add").onclick = ()=>confirmarComida(false);
+    const ba2 = document.getElementById("btn-add2");
+    if(ba2) ba2.onclick = ()=>confirmarComida(true);
     document.getElementById("btn-no").onclick = ()=>{pendiente=null; fotoPend=null; render();};
   }
+  // aceptar / rechazar comidas compartidas
+  document.querySelectorAll(".ac-si").forEach(b=>b.onclick=async ()=>{
+    const c = compartidasPend.find(x=>x.id===parseInt(b.dataset.id)); if(!c) return;
+    const {data, error} = await sb.from("pastanaga_comidas").insert({
+      user_id: uid, fecha: c.fecha, hora: "💛",
+      alimentos: c.alimentos, kcal: c.kcal, proteina: c.proteina,
+      carbs: c.carbs, grasa: c.grasa, foto_url: c.foto_url,
+    }).select().single();
+    if(error){ errorMsg = "No se pudo aceptar: "+error.message; render(); return; }
+    await sb.from("pastanaga_compartidas").delete().eq("id", c.id);
+    compartidasPend = compartidasPend.filter(x=>x.id!==c.id);
+    if(c.fecha===fechaSel) entradas.push(data);
+    puntosCache=null; render();
+  });
+  document.querySelectorAll(".ac-no").forEach(b=>b.onclick=async ()=>{
+    const id = parseInt(b.dataset.id);
+    await sb.from("pastanaga_compartidas").delete().eq("id",id);
+    compartidasPend = compartidasPend.filter(x=>x.id!==id);
+    render();
+  });
   document.querySelectorAll(".del").forEach(b=>b.onclick=async ()=>{
     const id = parseInt(b.dataset.id);
     const ent = entradas.find(x=>x.id===id);
@@ -778,7 +862,7 @@ function renderAjustes(){
   if(session){
     uid = session.user.id;
     await cargarPerfiles();
-    if(perfil){ await cargarDia(); await cargarGymHoy(); }
+    if(perfil){ await cargarDia(); await cargarGymHoy(); await cargarCompartidas(); }
   }
   render();
 })();
