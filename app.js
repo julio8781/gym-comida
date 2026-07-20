@@ -100,7 +100,7 @@ function materializarRutina(){
   if(!perfil.rutina) perfil.rutina = JSON.parse(JSON.stringify(RUTINA_DEF));
   if(!perfil.rutina.nombres) perfil.rutina.nombres = {...NOMBRES_DEF};
 }
-const MODELOS = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"];
+const MODELOS = ["gemini-1.5-flash", "gemini-1.5-pro"];
 const espera = ms => new Promise(r=>setTimeout(r,ms));
 
 async function gemini(parts){
@@ -109,7 +109,7 @@ async function gemini(parts){
     for(let intento = 0; intento < 2; intento++){
       let r;
       try{
-        r = await fetch("https://generativelanguage.googleapis.com/v1/models/"+modelo+":generateContent?key="+encodeURIComponent(perfil.apikey),{
+        r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent?key="+encodeURIComponent(perfil.apikey),{
           method:"POST", headers:{"Content-Type":"application/json"},
           body:JSON.stringify({contents:[{parts}], generationConfig:{temperature:0.2}})
         });
@@ -121,6 +121,7 @@ async function gemini(parts){
       }
       if(r.status===400||r.status===403) throw new Error("Clave de Gemini no válida. Revísala en Ajustes ⚙️");
       if(r.status===429){ ultimo = new Error("Demasiadas peticiones, espera un momento"); await espera(2500); continue; }
+      if(r.status===404){ ultimo = new Error("Modelo no encontrado en Google AI"); continue; }
       ultimo = new Error("Error del servidor de Gemini ("+r.status+")");
       await espera(1200);
     }
