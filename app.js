@@ -101,7 +101,7 @@ function materializarRutina(){
   if(!perfil.rutina.nombres) perfil.rutina.nombres = {...NOMBRES_DEF};
 }
 
-const MODELOS = ["gemini-flash-latest","gemini-2.5-flash","gemini-2.0-flash"];
+const MODELOS = ["gemini-3.5-flash","gemini-2.5-flash","gemini-flash-latest"];
 const espera = ms => new Promise(r=>setTimeout(r,ms));
 
 async function gemini(parts){
