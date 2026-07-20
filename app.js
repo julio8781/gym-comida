@@ -100,7 +100,7 @@ function materializarRutina(){
   if(!perfil.rutina) perfil.rutina = JSON.parse(JSON.stringify(RUTINA_DEF));
   if(!perfil.rutina.nombres) perfil.rutina.nombres = {...NOMBRES_DEF};
 }
-const MODELOS = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-flash-latest"];
+const MODELOS = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"];
 const espera = ms => new Promise(r=>setTimeout(r,ms));
 
 async function gemini(parts){
@@ -109,7 +109,7 @@ async function gemini(parts){
     for(let intento = 0; intento < 2; intento++){
       let r;
       try{
-        r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent?key="+encodeURIComponent(perfil.apikey),{
+        r = await fetch("https://generativelanguage.googleapis.com/v1/models/"+modelo+":generateContent?key="+encodeURIComponent(perfil.apikey),{
           method:"POST", headers:{"Content-Type":"application/json"},
           body:JSON.stringify({contents:[{parts}], generationConfig:{temperature:0.2}})
         });
