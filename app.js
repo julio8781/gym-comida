@@ -101,7 +101,33 @@ function materializarRutina(){
   if(!perfil.rutina.nombres) perfil.rutina.nombres = {...NOMBRES_DEF};
 }
 
-const MODELO = "gemini-flash-latest";
+const MODELOS = ["gemini-flash-latest","gemini-2.5-flash","gemini-2.0-flash"];
+const espera = ms => new Promise(r=>setTimeout(r,ms));
+
+async function gemini(parts){
+  let ultimo = null;
+  for(const modelo of MODELOS){
+    for(let intento = 0; intento < 2; intento++){
+      let r;
+      try{
+        r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent?key="+encodeURIComponent(perfil.apikey),{
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({contents:[{parts}], generationConfig:{temperature:0.2}})
+        });
+      }catch(e){ ultimo = new Error("Sin conexión con Gemini"); await espera(1200); continue; }
+      if(r.ok){
+        const data = await r.json();
+        const texto = (data.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join("");
+        return JSON.parse(texto.replace(/```json|```/g,"").trim());
+      }
+      if(r.status===400||r.status===403) throw new Error("Clave de Gemini no válida. Revísala en Ajustes ⚙️");
+      if(r.status===429){ ultimo = new Error("Demasiadas peticiones, espera un momento"); await espera(2500); continue; }
+      ultimo = new Error("Error del servidor de Gemini ("+r.status+")");
+      await espera(1200);
+    }
+  }
+  throw ultimo || new Error("Gemini no responde ahora mismo, prueba en un rato");
+}
 const P_COMIDA = 'Eres un nutricionista. Analiza la comida y estima calorías y macros de forma realista para raciones típicas en España. Responde SOLO con JSON válido, sin markdown ni backticks ni texto extra, estructura exacta: {"alimentos":[{"nombre":"","kcal":0,"proteina_g":0,"carbs_g":0,"grasa_g":0}],"total_kcal":0,"comentario":"máx 15 palabras, tono cercano"}. Si no hay comida reconocible: {"alimentos":[],"total_kcal":0,"comentario":"No veo comida ahí"}';
 const P_PRODUCTO = 'Eres un nutricionista que evalúa productos de supermercado al estilo de la app Yuka. Analiza la foto del producto (envase, ingredientes o tabla nutricional). Valora azúcares, grasas saturadas, sal, aditivos, ultraprocesado y calidad de ingredientes. Responde SOLO con JSON válido sin markdown: {"nombre":"","puntuacion":0,"nivel":"malo|mediocre|bueno|excelente","positivos":["hasta 3, cortos"],"negativos":["hasta 3, cortos"],"alternativa":"alternativa más sana de súper español o vacío","kcal_100g":0}. Puntuación 0-100: 0-24 malo, 25-49 mediocre, 50-74 bueno, 75-100 excelente. Si no reconoces producto: {"nombre":"","puntuacion":-1,"nivel":"","positivos":[],"negativos":[],"alternativa":"","kcal_100g":0}';
 
@@ -118,20 +144,6 @@ async function pedirSugerencias(rest, protFalta){
   return gemini([{text:prompt}]);
 }
 
-async function gemini(parts){
-  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+MODELO+":generateContent?key="+encodeURIComponent(perfil.apikey),{
-    method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({contents:[{parts}], generationConfig:{temperature:0.2}})
-  });
-  if(!r.ok){
-    if(r.status===400||r.status===403) throw new Error("Clave de Gemini no válida. Revísala en Ajustes ⚙️");
-    if(r.status===429) throw new Error("Demasiadas peticiones seguidas, espera un momento");
-    throw new Error("Error del servidor de Gemini ("+r.status+")");
-  }
-  const data = await r.json();
-  const texto = (data.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join("");
-  return JSON.parse(texto.replace(/```json|```/g,"").trim());
-}
 
 async function redimensionar(file){
   const max = 896;
@@ -1047,7 +1059,7 @@ function renderGym(){
       ${["A","B","C","D"].map(d=>`<button data-d="${d}" class="${diaGym===d?"on":""}" style="font-size:12px">${esc(nombreRutina(perfil,d))}</button>`).join("")}
     </div>
     <p class="muted" style="margin-bottom:10px">${NOTAS_DIA[diaGym]}</p>
-    ${(rut[diaGym]||[]).filter(id=>BIB[id]).map(id=>'<p class="pt" style="cursor:pointer" data-ficha="'+id+'">• '+BIB[id].n+' <span class="muted">'+BIB[id].s+'</span></p>').join("")}
+    ${(rut[diaGym]||[]).filter(id=>BIB[id]).map(id=>'<div class="ej" style="cursor:pointer" data-ficha="'+id+'"><div class="body"><p class="nm">'+BIB[id].n+' 📖</p><p class="muted">'+BIB[id].s+' · '+BIB[id].m+'</p></div></div>').join("")}
     <div style="margin-top:12px"><button class="btn green" id="g-empezar">🏋️ Empezar: ${esc(nombreRutina(perfil,diaGym))}</button></div>
   </div>` : ""}
 
