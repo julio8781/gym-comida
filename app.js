@@ -121,7 +121,9 @@ async function gemini(parts){
       });
     }catch(e){
       clearTimeout(corte);
-      ultimo = new Error((ultimo?ultimo.message+" | ":"")+modelo+"→"+(e.name==="AbortError"?"timeout":"sin red"));
+      let det = "";
+    try{ det = (await r.json())?.error?.message || ""; }catch(e){}
+    ultimo = new Error((ultimo?ultimo.message+" | ":"")+modelo+"→"+r.status+" "+det.slice(0,120));
       continue;
     }
     clearTimeout(corte);
