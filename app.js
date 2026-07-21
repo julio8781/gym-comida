@@ -121,7 +121,7 @@ async function gemini(parts){
       });
     }catch(e){
       clearTimeout(corte);
-      ultimo = new Error(e.name==="AbortError" ? "Gemini tardó demasiado" : "Sin conexión con Gemini");
+      ultimo = new Error((ultimo?ultimo.message+" | ":"")+modelo+"→"+(e.name==="AbortError"?"timeout":"sin red"));
       continue;
     }
     clearTimeout(corte);
@@ -137,7 +137,7 @@ async function gemini(parts){
       throw new Error("Gemini rechaza: "+(det?det.slice(0,90):"revisa la clave en Ajustes"));
     }
     if(r.status===429){ ultimo = new Error("Demasiadas peticiones, espera un momento"); await espera(1200); continue; }
-    ultimo = new Error("Gemini saturado ("+r.status+")");
+    ultimo = new Error((ultimo?ultimo.message+" | ":"")+modelo+"→"+r.status);
   }
   throw ultimo || new Error("Gemini no responde ahora mismo, prueba en un rato");
 }
