@@ -101,39 +101,43 @@ function materializarRutina(){
   if(!perfil.rutina.nombres) perfil.rutina.nombres = {...NOMBRES_DEF};
 }
 
-const MODELOS = ["gemini-2.5-flash","gemini-2.5-flash-lite","gemini-3.5-flash"];
+const MODELOS = ["gemini-2.0-flash","gemini-2.5-flash-lite","gemini-2.0-flash-lite","gemini-2.5-flash"];
 const espera = ms => new Promise(r=>setTimeout(r,ms));
 
 async function gemini(parts){
   let ultimo = null;
   for(const modelo of MODELOS){
-    for(let intento = 0; intento < 2; intento++){
-      let r;
-      const ctrl = new AbortController();
-      const corte = setTimeout(()=>ctrl.abort(), 20000);
-      try{
-        r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent",{
-          method:"POST",
-          headers:{"Content-Type":"application/json","x-goog-api-key":perfil.apikey},
-          body:JSON.stringify({contents:[{parts}], generationConfig:{temperature:0.2}}),
-          signal: ctrl.signal,
-        });
-      }catch(e){
-        clearTimeout(corte);
-        ultimo = new Error(e.name==="AbortError" ? "Gemini tardó demasiado" : "Sin conexión con Gemini");
-        break;
-      }
+    let r;
+    const ctrl = new AbortController();
+    const corte = setTimeout(()=>ctrl.abort(), 25000);
+    const cfg = {temperature:0.2};
+    if(modelo.indexOf("2.5")>=0) cfg.thinkingConfig = {thinkingBudget:0};
+    try{
+      r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-goog-api-key":perfil.apikey},
+        body:JSON.stringify({contents:[{parts}], generationConfig:cfg}),
+        signal: ctrl.signal,
+      });
+    }catch(e){
       clearTimeout(corte);
-      if(r.ok){
-        const data = await r.json();
-        const texto = (data.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join("");
-        return JSON.parse(texto.replace(/```json|```/g,"").trim());
-      }
-      if(r.status===400||r.status===403) throw new Error("Clave de Gemini no válida. Revísala en Ajustes ⚙️");
-      if(r.status===429){ ultimo = new Error("Demasiadas peticiones, espera un momento"); await espera(1500); continue; }
-      ultimo = new Error("Gemini saturado ("+r.status+")");
-      break;
+      ultimo = new Error(e.name==="AbortError" ? "Gemini tardó demasiado" : "Sin conexión con Gemini");
+      continue;
     }
+    clearTimeout(corte);
+    if(r.ok){
+      const data = await r.json();
+      const texto = (data.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join("");
+      try{ return JSON.parse(texto.replace(/```json|```/g,"").trim()); }
+      catch(e){ ultimo = new Error("Respuesta rara de Gemini"); continue; }
+    }
+    if(r.status===400||r.status===403){
+      let det = "";
+      try{ det = (await r.json())?.error?.message || ""; }catch(e){}
+      throw new Error("Gemini rechaza: "+(det?det.slice(0,90):"revisa la clave en Ajustes"));
+    }
+    if(r.status===429){ ultimo = new Error("Demasiadas peticiones, espera un momento"); await espera(1200); continue; }
+    ultimo = new Error("Gemini saturado ("+r.status+")");
   }
   throw ultimo || new Error("Gemini no responde ahora mismo, prueba en un rato");
 }
@@ -630,7 +634,7 @@ function renderDiario(){
           ${!mio && !e.borrada ? '<button class="metoo" data-id="'+e.id+'" style="margin-top:10px;border:2px solid var(--carrot);background:#fff;color:var(--carrot);border-radius:10px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer">🍽️ Yo también comí esto</button>' : ""}
           ${mio ? (e.borrada
             ? '<button class="resto" data-id="'+e.id+'" style="margin-top:10px;background:none;border:0;color:var(--green);font-size:12px;font-weight:700;cursor:pointer">↩️ restaurar (vuelve a contar)</button>'
-            : '<button class="del" data-id="'+e.id+'" style="margin-top:10px">🗑 borrar (quedará la huella en gris)</button>') : ""}
+            : '<button class="del" data-id="'+e.id+'" style="margin-top:10px">🗑 borrar ()</button>') : ""}
         </div>`:""}
       </div>`;}).join("")}
   </div>`;
