@@ -101,7 +101,7 @@ function materializarRutina(){
   if(!perfil.rutina.nombres) perfil.rutina.nombres = {...NOMBRES_DEF};
 }
 
-const MODELOS = ["gemini-2.0-flash","gemini-2.5-flash-lite","gemini-2.0-flash-lite","gemini-2.5-flash"];
+const MODELOS = ["gemini-3.5-flash","gemini-3.1-flash-lite","gemini-3.6-flash","gemini-flash-latest"];
 const espera = ms => new Promise(r=>setTimeout(r,ms));
 
 async function gemini(parts){
@@ -121,9 +121,7 @@ async function gemini(parts){
       });
     }catch(e){
       clearTimeout(corte);
-      let det = "";
-    try{ det = (await r.json())?.error?.message || ""; }catch(e){}
-    ultimo = new Error((ultimo?ultimo.message+" | ":"")+modelo+"→"+r.status+" "+det.slice(0,120));
+      ultimo = new Error(e.name==="AbortError" ? "Gemini tardó demasiado" : "Sin conexión con Gemini");
       continue;
     }
     clearTimeout(corte);
