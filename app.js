@@ -101,7 +101,7 @@ function materializarRutina(){
   if(!perfil.rutina.nombres) perfil.rutina.nombres = {...NOMBRES_DEF};
 }
 
-const MODELOS = ["gemini-3.5-flash","gemini-2.5-flash","gemini-flash-latest"];
+const MODELOS = ["gemini-2.5-flash","gemini-2.5-flash-lite","gemini-3.5-flash"];
 const espera = ms => new Promise(r=>setTimeout(r,ms));
 
 async function gemini(parts){
@@ -109,26 +109,35 @@ async function gemini(parts){
   for(const modelo of MODELOS){
     for(let intento = 0; intento < 2; intento++){
       let r;
+      const ctrl = new AbortController();
+      const corte = setTimeout(()=>ctrl.abort(), 20000);
       try{
         r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent",{
-          method:"POST", headers:{"Content-Type":"application/json","x-goog-api-key":perfil.apikey},
-          body:JSON.stringify({contents:[{parts}], generationConfig:{temperature:0.2}})
+          method:"POST",
+          headers:{"Content-Type":"application/json","x-goog-api-key":perfil.apikey},
+          body:JSON.stringify({contents:[{parts}], generationConfig:{temperature:0.2}}),
+          signal: ctrl.signal,
         });
-      }catch(e){ ultimo = new Error("Sin conexión con Gemini"); await espera(1200); continue; }
+      }catch(e){
+        clearTimeout(corte);
+        ultimo = new Error(e.name==="AbortError" ? "Gemini tardó demasiado" : "Sin conexión con Gemini");
+        break;
+      }
+      clearTimeout(corte);
       if(r.ok){
         const data = await r.json();
         const texto = (data.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join("");
         return JSON.parse(texto.replace(/```json|```/g,"").trim());
       }
       if(r.status===400||r.status===403) throw new Error("Clave de Gemini no válida. Revísala en Ajustes ⚙️");
-      if(r.status===429){ ultimo = new Error("Demasiadas peticiones, espera un momento"); await espera(2500); continue; }
-      ultimo = new Error("Error del servidor de Gemini ("+r.status+")");
-      await espera(1200);
+      if(r.status===429){ ultimo = new Error("Demasiadas peticiones, espera un momento"); await espera(1500); continue; }
+      ultimo = new Error("Gemini saturado ("+r.status+")");
+      break;
     }
   }
   throw ultimo || new Error("Gemini no responde ahora mismo, prueba en un rato");
 }
-const P_COMIDA = 'Eres un nutricionista. Analiza la comida y estima calorías y macros de forma realista para raciones típicas en España. Responde SOLO con JSON válido, sin markdown ni backticks ni texto extra, estructura exacta: {"alimentos":[{"nombre":"","kcal":0,"proteina_g":0,"carbs_g":0,"grasa_g":0}],"total_kcal":0,"comentario":"máx 15 palabras, tono cercano"}. Si no hay comida reconocible: {"alimentos":[],"total_kcal":0,"comentario":"No veo comida ahí"}';
+const P_COMIDA = 'Eres un nutricionista. Analiza la comida y estima calorías, cantidad en gramos y macros de forma realista para raciones típicas en España. Responde SOLO con JSON válido, sin markdown ni backticks ni texto extra, estructura exacta: {"alimentos":[{"nombre":"","cantidad_g":0,"kcal":0,"proteina_g":0,"carbs_g":0,"grasa_g":0}],"total_kcal":0,"comentario":"máx 15 palabras, tono cercano"}. cantidad_g son los gramos estimados de esa ración. Si no hay comida reconocible: {"alimentos":[],"total_kcal":0,"comentario":"No veo comida ahí"}';
 const P_PRODUCTO = 'Eres un nutricionista que evalúa productos de supermercado al estilo de la app Yuka. Analiza la foto del producto (envase, ingredientes o tabla nutricional). Valora azúcares, grasas saturadas, sal, aditivos, ultraprocesado y calidad de ingredientes. Responde SOLO con JSON válido sin markdown: {"nombre":"","puntuacion":0,"nivel":"malo|mediocre|bueno|excelente","positivos":["hasta 3, cortos"],"negativos":["hasta 3, cortos"],"alternativa":"alternativa más sana de súper español o vacío","kcal_100g":0}. Puntuación 0-100: 0-24 malo, 25-49 mediocre, 50-74 bueno, 75-100 excelente. Si no reconoces producto: {"nombre":"","puntuacion":-1,"nivel":"","positivos":[],"negativos":[],"alternativa":"","kcal_100g":0}';
 
 const P_TICKET = 'Lee este ticket de supermercado. Devuelve SOLO JSON válido sin markdown: {"articulos":["nombre corto y normalizado",...]}. Solo los artículos (comida y productos), sin precios ni cantidades, nombres cortos tipo "Pechuga de pollo", "Yogur griego". Si la imagen no es un ticket: {"articulos":[]}';
@@ -488,10 +497,10 @@ function renderDiario(){
       <div>
         <p style="font-weight:800;font-size:16px;color:${pasado?"var(--red)":alerta?"var(--orange)":"var(--ink)"}">
           ${pasado ? "Pasado en "+Math.abs(rest)+" kcal" : rest+" kcal libres"}</p>
-        <div style="margin-top:8px">
-          <span class="chip ${tp>=protT?"prot-ok":""}"><b>${tp}/${protT}g</b>proteína</span>
-          <span class="chip"><b>${tc}g</b>carbos</span>
-          <span class="chip"><b>${tg}g</b>grasa</span>
+        <div class="mcards" style="margin-top:8px">
+          <div class="mcard mc-prot ${tp>=protT?"mc-ok":""}">Proteína<b>${tp}/${protT} g</b></div>
+          <div class="mcard mc-carb">Carbs<b>${tc} g</b></div>
+          <div class="mcard mc-fat">Grasas<b>${tg} g</b></div>
         </div>
         ${alerta && mio ? '<p style="margin-top:6px;font-size:13px;font-weight:700;color:var(--orange)">⚠️ Quedan '+rest+' kcal y aún falta la cena — hoy toca ligera</p>' : ""}
         ${tp<protT && mio && !alerta ? '<p class="muted" style="margin-top:6px">Te faltan '+(protT-tp)+' g de proteína — pollo, atún, huevos, yogur…</p>' : ""}
@@ -548,23 +557,40 @@ function renderDiario(){
     </div>
   </div>` : ""}
 
-  ${pendiente && mio ? `
+  ${pendiente && mio ? (()=>{
+    const tk = pendiente.alimentos.reduce((s,a)=>s+(a.kcal||0),0);
+    const tp2 = Math.round(pendiente.alimentos.reduce((s,a)=>s+(a.proteina_g||0),0));
+    const tc2 = Math.round(pendiente.alimentos.reduce((s,a)=>s+(a.carbs_g||0),0));
+    const tg2 = Math.round(pendiente.alimentos.reduce((s,a)=>s+(a.grasa_g||0),0));
+    return `
   <div class="card" style="border:2px solid var(--carrot);background:var(--carrot-soft)">
     <h2>He detectado esto:</h2>
     ${fotoPend?'<img src="data:image/jpeg;base64,'+fotoPend+'" style="width:100%;border-radius:12px;margin:8px 0">':""}
-    ${pendiente.alimentos.map(a=>`<div class="entry"><span>${esc(a.nombre)}</span><b>${a.kcal} kcal</b></div>`).join("")}
-    <div class="entry" style="font-weight:800"><span>TOTAL</span><span>${pendiente.total_kcal} kcal</span></div>
-    ${pendiente.comentario?'<p class="muted" style="font-style:italic;margin-top:6px">"'+esc(pendiente.comentario)+'"</p>':""}
-    <div class="row" style="margin-top:10px">
-      <input type="text" id="corr-txt" placeholder="¿Me equivoqué? Corrígeme: 'no hay queso, es pavo'">
-      <button class="btn sm" style="flex:0 0 54px" id="btn-corr" ${cargando?"disabled":""}>${cargando?'<span class="spin"></span>':"🔁"}</button>
+    <div class="mcards" style="margin:8px 0 6px">
+      <div class="mcard mc-kcal">Calorías<b>${tk}</b></div>
+      <div class="mcard mc-carb">Carbs<b>${tc2} g</b></div>
+      <div class="mcard mc-prot">Proteína<b>${tp2} g</b></div>
+      <div class="mcard mc-fat">Grasas<b>${tg2} g</b></div>
     </div>
+    ${pendiente.alimentos.map((a,i)=>`
+    <div class="entry" style="align-items:center">
+      <div style="flex:1">
+        <p style="font-weight:700;font-size:14px">${esc(a.nombre)}</p>
+        <p class="muted">${a.cantidad_g?Math.round(a.cantidad_g)+" g · ":""}${a.kcal||0} kcal · P${Math.round(a.proteina_g||0)} C${Math.round(a.carbs_g||0)} G${Math.round(a.grasa_g||0)}</p>
+      </div>
+      <button class="pend-del" data-i="${i}" style="background:none;border:0;font-size:16px;cursor:pointer;padding:4px 8px">✕</button>
+    </div>`).join("")}
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="pend-nuevo" placeholder="Añadir alimento: 'un pan', 'una caña'…">
+      <button class="btn sm" style="flex:0 0 54px" id="pend-add" ${cargando?"disabled":""}>${cargando?'<span class="spin"></span>':"➕"}</button>
+    </div>
+    ${pendiente.comentario?'<p class="muted" style="font-style:italic;margin-top:8px">"'+esc(pendiente.comentario)+'"</p>':""}
     <div class="row" style="margin-top:12px">
-      <button class="btn green sm" id="btn-add">✓ Añadir</button>
+      <button class="btn green sm" id="btn-add">✓ Añadir (${tk} kcal)</button>
       ${parejaPerfil?'<button class="btn sm" id="btn-add2" style="background:#eab308">💛 Añadir y compartir</button>':""}
     </div>
     <div style="margin-top:8px"><button class="btn sec sm" id="btn-no">Descartar</button></div>
-  </div>` : ""}
+  </div>`;})() : ""}
 
   <div class="card">
     <h2>${mio ? "Diario" : "Su diario"} ${esHoy ? "de hoy" : "del día"}</h2>
@@ -595,11 +621,13 @@ function renderDiario(){
             <span style="font-weight:600">${esc(a.nombre)}</span>
             <span class="muted" style="white-space:nowrap">${a.kcal||0} kcal · P${Math.round(a.proteina_g||0)} C${Math.round(a.carbs_g||0)} G${Math.round(a.grasa_g||0)}</span>
           </div>`).join("")}
-          <div style="margin-top:8px">
-            <span class="chip"><b>${Math.round(e.proteina||0)}g</b>proteína</span>
-            <span class="chip"><b>${Math.round(e.carbs||0)}g</b>carbos</span>
-            <span class="chip"><b>${Math.round(e.grasa||0)}g</b>grasa</span>
+          <div class="mcards" style="margin-top:8px">
+            <div class="mcard mc-kcal">Calorías<b>${e.kcal}</b></div>
+            <div class="mcard mc-prot">Proteína<b>${Math.round(e.proteina||0)} g</b></div>
+            <div class="mcard mc-carb">Carbs<b>${Math.round(e.carbs||0)} g</b></div>
+            <div class="mcard mc-fat">Grasas<b>${Math.round(e.grasa||0)} g</b></div>
           </div>
+          ${!mio && !e.borrada ? '<button class="metoo" data-id="'+e.id+'" style="margin-top:10px;border:2px solid var(--carrot);background:#fff;color:var(--carrot);border-radius:10px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer">🍽️ Yo también comí esto</button>' : ""}
           ${mio ? (e.borrada
             ? '<button class="resto" data-id="'+e.id+'" style="margin-top:10px;background:none;border:0;color:var(--green);font-size:12px;font-weight:700;cursor:pointer">↩️ restaurar (vuelve a contar)</button>'
             : '<button class="del" data-id="'+e.id+'" style="margin-top:10px">🗑 borrar (quedará la huella en gris)</button>') : ""}
@@ -616,10 +644,23 @@ function renderDiario(){
   if(vp) vp.onclick = async ()=>{ verUser = parejaPerfil.user_id; entAbierta=null; await cargarDia(); render(); };
 
   document.querySelectorAll(".entcaja").forEach(el=>el.onclick=(ev)=>{
-    if(ev.target.closest(".del") || ev.target.closest(".resto") || ev.target.closest(".rc") || ev.target.closest("a")) return;
+    if(ev.target.closest(".del") || ev.target.closest(".resto") || ev.target.closest(".rc") || ev.target.closest(".metoo") || ev.target.closest("a")) return;
     const id = parseInt(el.dataset.ent);
     entAbierta = entAbierta===id ? null : id;
     render();
+  });
+
+  document.querySelectorAll(".metoo").forEach(b=>b.onclick=async ()=>{
+    const e2 = entradas.find(x=>x.id===parseInt(b.dataset.id)); if(!e2) return;
+    b.disabled = true; b.textContent = "Guardando…";
+    const {error} = await sb.from("pastanaga_comidas").insert({
+      user_id: uid, fecha: e2.fecha, hora: e2.hora,
+      alimentos: e2.alimentos, kcal: e2.kcal, proteina: e2.proteina,
+      carbs: e2.carbs, grasa: e2.grasa, foto_url: e2.foto_url,
+    });
+    if(error){ errorMsg = "No se pudo copiar: "+error.message; render(); return; }
+    puntosCache = null;
+    b.textContent = "✓ Añadido a tu diario";
   });
 
   document.querySelectorAll(".rc").forEach(b=>b.onclick=async ()=>{
@@ -681,7 +722,7 @@ function renderDiario(){
       const base = {
         fecha: fechaSel,
         alimentos: pendiente.alimentos,
-        kcal: pendiente.total_kcal,
+        kcal: pendiente.alimentos.reduce((s,a)=>s+(a.kcal||0),0),
         proteina: pendiente.alimentos.reduce((s,a)=>s+(a.proteina_g||0),0),
         carbs: pendiente.alimentos.reduce((s,a)=>s+(a.carbs_g||0),0),
         grasa: pendiente.alimentos.reduce((s,a)=>s+(a.grasa_g||0),0),
@@ -706,24 +747,25 @@ function renderDiario(){
     const ba2 = document.getElementById("btn-add2");
     if(ba2) ba2.onclick = ()=>confirmarComida(true);
     document.getElementById("btn-no").onclick = ()=>{pendiente=null; fotoPend=null; render();};
-    const bcor = document.getElementById("btn-corr");
-    if(bcor){
-      const recalcular = async ()=>{
-        const t = document.getElementById("corr-txt").value.trim(); if(!t) return;
+    document.querySelectorAll(".pend-del").forEach(b=>b.onclick=()=>{
+      pendiente.alimentos.splice(parseInt(b.dataset.i),1);
+      if(!pendiente.alimentos.length){ pendiente=null; fotoPend=null; }
+      render();
+    });
+    const pa = document.getElementById("pend-add");
+    if(pa){
+      const anadirAli = async ()=>{
+        const t = document.getElementById("pend-nuevo").value.trim(); if(!t) return;
         errorMsg=""; cargando=true; render();
         try{
-          const contexto = 'Tu análisis anterior fue: '+JSON.stringify({alimentos:pendiente.alimentos,total_kcal:pendiente.total_kcal})+'. El usuario te corrige: "'+t+'". Rehaz el análisis aplicando su corrección al pie de la letra: quita lo que diga que no hay, cambia lo que diga que es otra cosa, ajusta cantidades si las menciona. No inventes nada nuevo.\n\n';
-          const parts = fotoPend
-            ? [{inline_data:{mime_type:"image/jpeg",data:fotoPend}},{text:contexto+P_COMIDA}]
-            : [{text:contexto+P_COMIDA}];
-          const r = await gemini(parts);
-          if(r.alimentos?.length) pendiente = r;
-          else errorMsg = "No entendí la corrección, prueba a escribirla de otra forma";
-        }catch(e){ errorMsg = e.message || "Error recalculando"; }
+          const r = await gemini([{text:'Alimento(s) adicionales descritos por el usuario: "'+t+'"\n\n'+P_COMIDA}]);
+          if(r.alimentos?.length) pendiente.alimentos.push(...r.alimentos);
+          else errorMsg = "No entendí ese alimento";
+        }catch(e){ errorMsg = e.message || "Error añadiendo"; }
         cargando=false; render();
       };
-      bcor.onclick = recalcular;
-      document.getElementById("corr-txt").onkeydown = e=>{ if(e.key==="Enter") recalcular(); };
+      pa.onclick = anadirAli;
+      document.getElementById("pend-nuevo").onkeydown = e=>{ if(e.key==="Enter") anadirAli(); };
     }
   }
   document.querySelectorAll(".ac-si").forEach(b=>b.onclick=async ()=>{
@@ -1219,10 +1261,10 @@ async function renderPuntos(){
   </div>
   <div class="card">
     <h2>Premios 💛</h2>
-    <p class="pt"><b>100 pts</b> · el otro prepara el desayuno del finde</p>
-    <p class="pt"><b>250 pts</b> · masaje de 20 minutos</p>
-    <p class="pt"><b>500 pts</b> · cena donde elija el ganador</p>
-    <p class="pt"><b>1000 pts</b> · día de plan sorpresa</p>
+    <p class="pt"><b>150 pts</b> · el otro prepara el desayuno del finde</p>
+    <p class="pt"><b>375 pts</b> · masaje de 20 minutos</p>
+    <p class="pt"><b>750 pts</b> · cena donde elija el ganador</p>
+    <p class="pt"><b>1500 pts</b> · día de plan sorpresa</p>
     <p class="muted" style="margin-top:6px">Negociables a propuestas mas creativas 😄</p>
   </div>`;
   document.getElementById("btn-ajustes").onclick = renderAjustes;
