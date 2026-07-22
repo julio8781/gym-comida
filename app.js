@@ -107,37 +107,33 @@ const espera = ms => new Promise(r=>setTimeout(r,ms));
 async function gemini(parts){
   let ultimo = null;
   for(const modelo of MODELOS){
-    let r;
-    const ctrl = new AbortController();
-    const corte = setTimeout(()=>ctrl.abort(), 25000);
-    const cfg = {temperature:0.2};
-    if(modelo.indexOf("2.5")>=0) cfg.thinkingConfig = {thinkingBudget:0};
-    try{
-      r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent",{
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-goog-api-key":perfil.apikey},
-        body:JSON.stringify({contents:[{parts}], generationConfig:cfg}),
-        signal: ctrl.signal,
-      });
-    }catch(e){
+    for(let intento = 0; intento < 2; intento++){
+      let r;
+      const ctrl = new AbortController();
+      const corte = setTimeout(()=>ctrl.abort(), 20000);
+      try{
+        r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+modelo+":generateContent",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","x-goog-api-key":perfil.apikey},
+          body:JSON.stringify({contents:[{parts}], generationConfig:{temperature:0.2}}),
+          signal: ctrl.signal,
+        });
+      }catch(e){
+        clearTimeout(corte);
+        ultimo = new Error(e.name==="AbortError" ? "Gemini tardó demasiado" : "Sin conexión con Gemini");
+        break;
+      }
       clearTimeout(corte);
-      ultimo = new Error(e.name==="AbortError" ? "Gemini tardó demasiado" : "Sin conexión con Gemini");
-      continue;
+      if(r.ok){
+        const data = await r.json();
+        const texto = (data.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join("");
+        return JSON.parse(texto.replace(/```json|```/g,"").trim());
+      }
+      if(r.status===400||r.status===403) throw new Error("Clave de Gemini no válida. Revísala en Ajustes ⚙️");
+      if(r.status===429){ ultimo = new Error("Demasiadas peticiones, espera un momento"); await espera(1500); continue; }
+      ultimo = new Error("Gemini saturado ("+r.status+")");
+      break;
     }
-    clearTimeout(corte);
-    if(r.ok){
-      const data = await r.json();
-      const texto = (data.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join("");
-      try{ return JSON.parse(texto.replace(/```json|```/g,"").trim()); }
-      catch(e){ ultimo = new Error("Respuesta rara de Gemini"); continue; }
-    }
-    if(r.status===400||r.status===403){
-      let det = "";
-      try{ det = (await r.json())?.error?.message || ""; }catch(e){}
-      throw new Error("Gemini rechaza: "+(det?det.slice(0,90):"revisa la clave en Ajustes"));
-    }
-    if(r.status===429){ ultimo = new Error("Demasiadas peticiones, espera un momento"); await espera(1200); continue; }
-    ultimo = new Error((ultimo?ultimo.message+" | ":"")+modelo+"→"+r.status);
   }
   throw ultimo || new Error("Gemini no responde ahora mismo, prueba en un rato");
 }
@@ -585,8 +581,8 @@ function renderDiario(){
       <button class="pend-del" data-i="${i}" style="background:none;border:0;font-size:16px;cursor:pointer;padding:4px 8px">✕</button>
     </div>`).join("")}
     <div class="row" style="margin-top:8px">
-      <input type="text" id="pend-nuevo" placeholder="Añadir alimento: 'un pan', 'una caña'…">
-      <button class="btn sm" style="flex:0 0 54px" id="pend-add" ${cargando?"disabled":""}>${cargando?'<span class="spin"></span>':"➕"}</button>
+      <input type="text" id="pend-nuevo" placeholder="Corrígeme: 'son 2 latas', 'sin salsa', 'añade un pan'…">
+      <button class="btn sm" style="flex:0 0 54px" id="pend-add" ${cargando?"disabled":""}>${cargando?'<span class="spin"></span>':"🔁"}</button>
     </div>
     ${pendiente.comentario?'<p class="muted" style="font-style:italic;margin-top:8px">"'+esc(pendiente.comentario)+'"</p>':""}
     <div class="row" style="margin-top:12px">
@@ -634,7 +630,7 @@ function renderDiario(){
           ${!mio && !e.borrada ? '<button class="metoo" data-id="'+e.id+'" style="margin-top:10px;border:2px solid var(--carrot);background:#fff;color:var(--carrot);border-radius:10px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer">🍽️ Yo también comí esto</button>' : ""}
           ${mio ? (e.borrada
             ? '<button class="resto" data-id="'+e.id+'" style="margin-top:10px;background:none;border:0;color:var(--green);font-size:12px;font-weight:700;cursor:pointer">↩️ restaurar (vuelve a contar)</button>'
-            : '<button class="del" data-id="'+e.id+'" style="margin-top:10px">🗑 borrar ()</button>') : ""}
+            : '<button class="del" data-id="'+e.id+'" style="margin-top:10px">🗑 borrar (quedará la huella en gris)</button>') : ""}
         </div>`:""}
       </div>`;}).join("")}
   </div>`;
@@ -758,18 +754,28 @@ function renderDiario(){
     });
     const pa = document.getElementById("pend-add");
     if(pa){
-      const anadirAli = async ()=>{
+      const corregir = async ()=>{
         const t = document.getElementById("pend-nuevo").value.trim(); if(!t) return;
         errorMsg=""; cargando=true; render();
         try{
-          const r = await gemini([{text:'Alimento(s) adicionales descritos por el usuario: "'+t+'"\n\n'+P_COMIDA}]);
-          if(r.alimentos?.length) pendiente.alimentos.push(...r.alimentos);
-          else errorMsg = "No entendí ese alimento";
-        }catch(e){ errorMsg = e.message || "Error añadiendo"; }
+          const actual = JSON.stringify({alimentos: pendiente.alimentos});
+          const ctx = 'Esta es la lista actual de alimentos de un plato: '+actual+'\n'
+            + 'El usuario te da esta instrucción para corregirla: "'+t+'"\n'
+            + 'Aplícala al pie de la letra: si dice que hay más cantidad de algo, AJUSTA ese alimento (no lo dupliques); si dice que quites algo, elimínalo; si dice que añadas algo, súmalo; si dice que es otra cosa, cámbialo. Mantén sin tocar todo lo que no mencione. Devuelve la lista COMPLETA resultante, no solo los cambios.\n\n';
+          const parts = fotoPend
+            ? [{inline_data:{mime_type:"image/jpeg",data:fotoPend}},{text:ctx+P_COMIDA}]
+            : [{text:ctx+P_COMIDA}];
+          const r = await gemini(parts);
+          if(r.alimentos?.length){
+            pendiente = r;
+            document.getElementById("pend-nuevo") && (document.getElementById("pend-nuevo").value = "");
+          }
+          else errorMsg = "No entendí la corrección, prueba de otra forma";
+        }catch(e){ errorMsg = e.message || "Error corrigiendo"; }
         cargando=false; render();
       };
-      pa.onclick = anadirAli;
-      document.getElementById("pend-nuevo").onkeydown = e=>{ if(e.key==="Enter") anadirAli(); };
+      pa.onclick = corregir;
+      document.getElementById("pend-nuevo").onkeydown = e=>{ if(e.key==="Enter") corregir(); };
     }
   }
   document.querySelectorAll(".ac-si").forEach(b=>b.onclick=async ()=>{
