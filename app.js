@@ -12,6 +12,7 @@ const esc = s => String(s??"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;"
 const protObjetivo = p => Math.round(p.peso * 1.6);   // g de proteína al día (1.6 g/kg, ideal en déficit)
 
 let uid = null;
+let emailUsuario = null;        // email de la sesión (para mostrarlo en Ajustes)
 let perfil = null, parejaPerfil = null;
 let verUser = null;            // de quién estamos viendo el diario
 let fechaSel = hoy();          // qué día estamos viendo
@@ -37,6 +38,89 @@ let modoEditar = false;    // editando la rutina plantilla
 let bibAbierta = false;    // biblioteca de ejercicios abierta
 let obTmp = {sexo:"h", ritmo:"400"};
 let puntosCache = null;
+
+/* ===== TEMA (localStorage) ===== */
+const TEMAS = ["claro","oscuro","jugueton"];
+function temaActual(){ return localStorage.getItem("pastanaga_tema") || "claro"; }
+function aplicarTema(t){
+  if(t==="claro") document.body.removeAttribute("data-tema");
+  else document.body.setAttribute("data-tema", t);
+  localStorage.setItem("pastanaga_tema", t);
+}
+function rotarTema(){
+  const i = TEMAS.indexOf(temaActual());
+  aplicarTema(TEMAS[(i+1)%TEMAS.length]);
+}
+aplicarTema(temaActual());
+
+/* ===== ZANAHORIA REACTIVA (SVG) ===== */
+// gordura 0..1 (0 esbelta, 1 rechoncha) · animo 'feliz'|'normal'|'mal' · noche bool
+function svgZanahoria({gordura=0.5, animo='normal', noche=false}={}){
+  gordura = Math.max(0, Math.min(1, gordura));
+  const w = 95 + gordura*145;
+  const cx = 130;
+  const bodyTop = 120;
+  const extraLen = gordura*30;
+  const bodyBot = 330 + extraLen;
+  const half = w/2;
+  const bulge = 8 + gordura*38;
+  const body = `M ${cx-half} ${bodyTop}
+    Q ${cx-half-bulge} ${bodyTop+70} ${cx-half*0.5} ${bodyTop+140+extraLen}
+    Q ${cx} ${bodyBot+15} ${cx+half*0.5} ${bodyTop+140+extraLen}
+    Q ${cx+half+bulge} ${bodyTop+70} ${cx+half} ${bodyTop}
+    Q ${cx} ${bodyTop-24} ${cx-half} ${bodyTop} Z`;
+  const eyeY = bodyTop+55, eyeDx = Math.max(18, w*0.15);
+  const eye = (x)=> noche
+    ? `<path d="M ${x-9} ${eyeY} Q ${x} ${eyeY+8} ${x+9} ${eyeY}" stroke="#3a2a12" stroke-width="4" fill="none" stroke-linecap="round"/>`
+    : animo==='mal'
+      ? `<path d="M ${x-8} ${eyeY-5} Q ${x} ${eyeY} ${x+8} ${eyeY-5}" stroke="#3a2a12" stroke-width="3.5" fill="none" stroke-linecap="round"/><g class="ojo-parpado" style="transform-origin:${x}px ${eyeY+3}px"><circle cx="${x}" cy="${eyeY+3}" r="7" fill="#3a2a12"/><circle cx="${x+2}" cy="${eyeY+1}" r="2" fill="#fff"/></g>`
+      : `<g class="ojo-parpado" style="transform-origin:${x}px ${eyeY}px"><circle cx="${x}" cy="${eyeY}" r="8" fill="#3a2a12"/><circle cx="${x+3}" cy="${eyeY-3}" r="2.5" fill="#fff"/></g>`;
+  let mouth;
+  if(animo==='feliz') mouth = `<path d="M ${cx-20} ${eyeY+26} Q ${cx} ${eyeY+50} ${cx+20} ${eyeY+26}" stroke="#3a2a12" stroke-width="4" fill="none" stroke-linecap="round"/>`;
+  else if(animo==='mal') mouth = `<path d="M ${cx-18} ${eyeY+46} Q ${cx} ${eyeY+20} ${cx+18} ${eyeY+46}" stroke="#3a2a12" stroke-width="4.5" fill="none" stroke-linecap="round"/>`;
+  else mouth = `<line x1="${cx-14}" y1="${eyeY+32}" x2="${cx+14}" y2="${eyeY+32}" stroke="#3a2a12" stroke-width="4" stroke-linecap="round"/>`;
+  const cheeks = animo==='feliz' ? `<circle cx="${cx-eyeDx-6}" cy="${eyeY+18}" r="7" fill="#ff9d6b" opacity=".6"/><circle cx="${cx+eyeDx+6}" cy="${eyeY+18}" r="7" fill="#ff9d6b" opacity=".6"/>` : '';
+  const sweat = animo==='mal'
+    ? `<path d="M ${cx+half-4} ${bodyTop+28} q -6 12 0 18 q 6 -6 0 -18" fill="#7ec8ff"/>
+       <path d="M ${cx-half+4} ${bodyTop+34} q -5 10 0 15 q 5 -5 0 -15" fill="#7ec8ff" opacity=".85"/>
+       <path d="M ${cx+eyeDx+22} ${eyeY-8} q -4 8 0 12 q 4 -4 0 -12" fill="#7ec8ff" opacity=".7"/>` : '';
+  const zzz = noche ? `<text x="${cx+half}" y="${bodyTop-10}" fill="#fff" font-size="22" opacity=".8">z</text><text x="${cx+half+16}" y="${bodyTop-26}" fill="#fff" font-size="16" opacity=".6">z</text>` : '';
+  const leaf = (dx,h,rot)=>`<path d="M ${cx+dx} ${bodyTop-4} Q ${cx+dx+rot} ${bodyTop-h} ${cx+dx+rot*0.3} ${bodyTop-h-6} Q ${cx+dx-rot*0.2} ${bodyTop-h+10} ${cx+dx} ${bodyTop-4} Z" fill="#3faa52"/>`;
+  return `<svg viewBox="0 0 260 400" width="150" xmlns="http://www.w3.org/2000/svg">
+    ${leaf(-14,60,-22)}${leaf(0,74,0)}${leaf(14,60,22)}
+    <path d="${body}" fill="#f97316" stroke="#e2620a" stroke-width="3"/>
+    <path d="M ${cx-half+10} ${bodyTop+20} Q ${cx} ${bodyTop+6} ${cx+half-10} ${bodyTop+20}" stroke="#ffb37a" stroke-width="3" fill="none" opacity=".5"/>
+    <path d="M ${cx-half+16} ${bodyTop+55} Q ${cx} ${bodyTop+42} ${cx+half-16} ${bodyTop+55}" stroke="#ffb37a" stroke-width="2.5" fill="none" opacity=".4"/>
+    ${eye(cx-eyeDx)}${eye(cx+eyeDx)}${cheeks}${mouth}${sweat}${zzz}
+  </svg>`;
+}
+// Construye el bloque de escenario a partir del estado del día
+function bloqueEscena({total, objetivo, entreno, nombre}){
+  const noche = new Date().getHours() >= 21 || new Date().getHours() < 6;
+  const ratio = objetivo>0 ? total/objetivo : 0;
+  // gordura: por debajo del objetivo delgada; pasarse la engorda rápido
+  let gordura;
+  if(ratio <= 1) gordura = ratio*0.45;            // 0 → 0.45 dentro del objetivo
+  else gordura = Math.min(1, 0.45 + (ratio-1)*1.8); // pasarse dispara la gordura
+  let animo = 'normal';
+  if(ratio > 1.05) animo = 'mal';
+  else if(ratio > 0 && ratio <= 1 && entreno) animo = 'feliz';
+  else if(ratio > 0 && ratio <= 0.9) animo = 'feliz';
+  let cap;
+  if(animo==='mal') cap = 'Uf… hoy nos pasamos 😞';
+  else if(animo==='feliz') cap = entreno ? '¡En forma y al día! 💪' : 'Vamos bien hoy ✨';
+  else cap = 'A por el día 🥕';
+  const estrellas = noche ? '<div class="estrellas">'+Array.from({length:9},()=>{
+    const x = Math.round(Math.random()*90+3), y = Math.round(Math.random()*55+6);
+    return '<span style="left:'+x+'%;top:'+y+'%"></span>';
+  }).join('')+'</div>' : '';
+  return `<div class="escena">
+    ${estrellas}
+    <div class="suelo"></div>
+    <div class="zsvg">${svgZanahoria({gordura, animo, noche})}</div>
+    <div class="estado-cap"><span>${esc(cap)}</span></div>
+  </div>`;
+}
 
 const GRUPOS = ["En casa","Pecho","Espalda","Pierna","Hombro","Bíceps","Tríceps","Core","Cardio"];
 const BIB = {
@@ -278,6 +362,15 @@ async function cargarGymDia(){
   }
   else sesionG = null;
 }
+// ¿entrenó hoy y completó? para el ánimo de la zanahoria
+async function entrenoHoy(user){
+  const {data:g} = await sb.from("pastanaga_gym").select("registro,hechos,dia")
+    .eq("user_id", user).eq("fecha", hoy()).maybeSingle();
+  if(!g) return false;
+  if(g.registro?.ejercicios?.length) return g.registro.ejercicios.every(x=>x.hecho);
+  const n = Object.entries(g.hechos||{}).filter(([k,v])=>v && k.startsWith(g.dia+"-")).length;
+  return n>=5;
+}
 function crearRegistro(dia){
   const ids = (rutinaDe(perfil)[dia]||[]).filter(id=>BIB[id]);
   return {ejercicios: ids.map(id=>({id, hecho:false, kg: String((perfil.pesos||{})[id] ?? (perfil.pesos||{})[BIB[id].n] ?? "")}))};
@@ -326,6 +419,25 @@ function render(){
   else renderPuntos();
 }
 
+// Botoncito de selector de tema (se inyecta en las topbars)
+function htmlSelectorTema(){
+  const t = temaActual();
+  return `<div class="temas" id="sel-tema">
+    <button class="t-claro ${t==='claro'?'on':''}" data-t="claro" title="Claro"></button>
+    <button class="t-oscuro ${t==='oscuro'?'on':''}" data-t="oscuro" title="Oscuro"></button>
+    <button class="t-jugueton ${t==='jugueton'?'on':''}" data-t="jugueton" title="Juguetón"></button>
+  </div>`;
+}
+function wireSelectorTema(){
+  const sel = document.getElementById("sel-tema");
+  if(!sel) return;
+  sel.querySelectorAll("button").forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    aplicarTema(b.dataset.t);
+    render();
+  });
+}
+
 function renderSinConfig(){
   app.innerHTML = `<div class="card" style="margin-top:40px">
     <h2>⚙️ Falta configurar</h2>
@@ -358,7 +470,7 @@ function renderLogin(){
     const b=document.getElementById("lg-go"); b.disabled=true; b.textContent="Entrando…";
     const {data, error} = await sb.auth.signInWithPassword({email, password:pass});
     if(error){ b.disabled=false; b.textContent="Entrar"; return err(error.message.includes("Invalid")?"Email o contraseña incorrectos":error.message); }
-    uid = data.user.id;
+    uid = data.user.id; emailUsuario = data.user.email;
     await cargarPerfiles(); if(perfil){ gymUser = uid; await cargarDia(); await cargarGymDia(); await cargarCompartidas(); }
     render();
   };
@@ -369,7 +481,7 @@ function renderLogin(){
     if(pass.length<6) return err("La contraseña necesita mínimo 6 caracteres");
     const {data, error} = await sb.auth.signUp({email, password:pass});
     if(error) return err(error.message);
-    if(data.session){ uid = data.user.id; await cargarPerfiles(); render(); }
+    if(data.session){ uid = data.user.id; emailUsuario = data.user.email; await cargarPerfiles(); render(); }
     else err("Cuenta creada. Revisa tu email para confirmarla y luego entra.");
   };
 }
@@ -469,7 +581,7 @@ function renderDiario(){
   app.innerHTML = `
   <div class="topbar">
     <div><h1>${mio ? "Hola, "+esc(perfil.nombre)+" 🥕" : esc(pAct.nombre)}</h1></div>
-    <button class="gear" id="btn-ajustes">⚙️</button>
+    <div style="display:flex;align-items:center;gap:8px">${htmlSelectorTema()}<button class="gear" id="btn-ajustes">⚙️</button></div>
   </div>
 
   ${parejaPerfil ? `
@@ -477,6 +589,8 @@ function renderDiario(){
     <button id="ver-yo" class="${mio?"on":""}">Yo</button>
     <button id="ver-pareja" class="${!mio?"on":""}">💛 ${esc(parejaPerfil.nombre)}</button>
   </div>` : ""}
+
+  ${esHoy ? bloqueEscena({total, objetivo:pAct.objetivo, entreno: !!window._entrenoHoy, nombre: pAct.nombre}) : ""}
 
   <div class="fnav">
     <button id="f-prev">‹</button>
@@ -510,7 +624,7 @@ function renderDiario(){
   </div>
 
   ${mio && compartidasPend.length ? compartidasPend.map(c=>`
-  <div class="card" style="border:2px solid #eab308;background:#fefce8">
+  <div class="card" style="border:2px solid #eab308;background:var(--carrot-soft)">
     <h2>💛 ${esc(c.de_nombre||"Tu pareja")} compartió una comida</h2>
     <div class="entry" style="border-bottom:0">
       ${c.foto_url?'<img src="'+esc(c.foto_url)+'" style="width:52px;height:52px;object-fit:cover;border-radius:10px;margin-right:10px;flex-shrink:0">':""}
@@ -549,7 +663,7 @@ function renderDiario(){
       <p style="font-weight:800;font-size:15px">${esc(o.nombre)} ${o.de_despensa?'<span style="background:var(--green);color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:8px;vertical-align:2px">🧊 CON LO DE CASA</span>':""}</p>
       <p class="muted" style="margin:2px 0 3px">${esc(o.desc)}</p>
       <p style="font-size:13px;font-weight:700">~${o.kcal} kcal · ${Math.round(o.proteina_g||0)}g prot · ⏱️ ${o.tiempo_min} min</p>
-      ${!o.de_despensa && (o.faltan||[]).length ? '<p style="font-size:12px;margin-top:3px;color:var(--orange);font-weight:700">🛒 Faltaría: '+o.faltan.map(f=>esc(f)).join(", ")+' <button class="sug-falta" data-f="'+esc(JSON.stringify(o.faltan))+'" style="border:1.5px solid var(--orange);background:#fff;color:var(--orange);border-radius:8px;padding:2px 8px;font-size:11px;font-weight:800;cursor:pointer;margin-left:4px">➕ a la lista</button></p>' : ""}
+      ${!o.de_despensa && (o.faltan||[]).length ? '<p style="font-size:12px;margin-top:3px;color:var(--orange);font-weight:700">🛒 Faltaría: '+o.faltan.map(f=>esc(f)).join(", ")+' <button class="sug-falta" data-f="'+esc(JSON.stringify(o.faltan))+'" style="border:1.5px solid var(--orange);background:var(--card);color:var(--orange);border-radius:8px;padding:2px 8px;font-size:11px;font-weight:800;cursor:pointer;margin-left:4px">➕ a la lista</button></p>' : ""}
     </div>`).join("")}
     <div class="row" style="margin-top:12px">
       <button class="btn sm" id="btn-ceno-mas" ${cargando?"disabled":""}>${cargando?'<span class="spin"></span>Pensando…':"🔁 No me molan, otras 3"}</button>
@@ -627,7 +741,7 @@ function renderDiario(){
             <div class="mcard mc-carb">Carbs<b>${Math.round(e.carbs||0)} g</b></div>
             <div class="mcard mc-fat">Grasas<b>${Math.round(e.grasa||0)} g</b></div>
           </div>
-          ${!mio && !e.borrada ? '<button class="metoo" data-id="'+e.id+'" style="margin-top:10px;border:2px solid var(--carrot);background:#fff;color:var(--carrot);border-radius:10px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer">🍽️ Yo también comí esto</button>' : ""}
+          ${!mio && !e.borrada ? '<button class="metoo" data-id="'+e.id+'" style="margin-top:10px;border:2px solid var(--carrot);background:var(--card);color:var(--carrot);border-radius:10px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer">🍽️ Yo también comí esto</button>' : ""}
           ${mio ? (e.borrada
             ? '<button class="resto" data-id="'+e.id+'" style="margin-top:10px;background:none;border:0;color:var(--green);font-size:12px;font-weight:700;cursor:pointer">↩️ restaurar (vuelve a contar)</button>'
             : '<button class="del" data-id="'+e.id+'" style="margin-top:10px">🗑 borrar (quedará la huella en gris)</button>') : ""}
@@ -635,6 +749,7 @@ function renderDiario(){
       </div>`;}).join("")}
   </div>`;
 
+  wireSelectorTema();
   document.getElementById("btn-ajustes").onclick = renderAjustes;
   document.getElementById("f-prev").onclick = async ()=>{ fechaSel = addDias(fechaSel,-1); await cargarDia(); render(); };
   const fn = document.getElementById("f-next");
@@ -838,14 +953,14 @@ function renderCompra(){
   const sueltos = lista.filter(x=>!x.fijo);
   const filaItem = x => `
     <div class="entry" style="align-items:center;padding:9px 0">
-      <button class="li-chk" data-id="${x.id}" style="width:30px;height:30px;flex-shrink:0;margin-right:10px;border-radius:9px;border:2px solid ${x.comprado?"#c8e6cf":"var(--line)"};background:${x.comprado?"var(--green-soft)":"#fff"};color:var(--green);font-weight:800;cursor:pointer">${x.comprado?"✓":""}</button>
+      <button class="li-chk" data-id="${x.id}" style="width:30px;height:30px;flex-shrink:0;margin-right:10px;border-radius:9px;border:2px solid ${x.comprado?"#c8e6cf":"var(--line)"};background:${x.comprado?"var(--green-soft)":"var(--card)"};color:var(--green);font-weight:800;cursor:pointer">${x.comprado?"✓":""}</button>
       <p style="flex:1;font-size:15px;${x.fijo?"font-weight:800;":""}${x.comprado?"color:#c7c2bb;text-decoration:line-through;":""}">${esc(x.nombre)}</p>
       <button class="li-fijo" data-id="${x.id}" style="background:none;border:0;font-size:18px;cursor:pointer;padding:4px;opacity:${x.fijo?1:.35}">⭐</button>
       ${x.fijo?"":'<button class="li-del" data-id="'+x.id+'" style="background:none;border:0;font-size:15px;cursor:pointer;padding:4px">🗑</button>'}
     </div>`;
 
   app.innerHTML = `
-  <div class="topbar"><h1>Compra 🛒</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
+  <div class="topbar"><h1>Compra 🛒</h1><div style="display:flex;align-items:center;gap:8px">${htmlSelectorTema()}<button class="gear" id="btn-ajustes">⚙️</button></div></div>
   <div class="seg" style="margin-bottom:12px">
     <button data-s="lista" class="${subCompra==="lista"?"on":""}">📝 Lista</button>
     <button data-s="despensa" class="${subCompra==="despensa"?"on":""}">🧊 Despensa</button>
@@ -893,7 +1008,7 @@ function renderCompra(){
     ${despensa.length ? despensa.map(d=>`
     <div class="entry" style="align-items:center">
       <p style="flex:1;font-size:15px;font-weight:600">${esc(d.nombre)}</p>
-      <button class="de-fin" data-id="${d.id}" data-n="${esc(d.nombre)}" style="border:2px solid var(--line);background:#fff;border-radius:10px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer">se acabó → 📝</button>
+      <button class="de-fin" data-id="${d.id}" data-n="${esc(d.nombre)}" style="border:2px solid var(--line);background:var(--card);border-radius:10px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer">se acabó → 📝</button>
     </div>`).join("") : '<p class="muted" style="margin-top:8px">Despensa vacía. Foto al primer ticket y se llena sola.</p>'}
   </div>
   ` : ""}
@@ -919,6 +1034,7 @@ function renderCompra(){
   </div>`:""}
   ` : ""}`;
 
+  wireSelectorTema();
   document.getElementById("btn-ajustes").onclick = renderAjustes;
   document.querySelectorAll(".seg button[data-s]").forEach(b=>b.onclick=()=>{subCompra=b.dataset.s; errorMsg=""; render();});
 
@@ -1027,7 +1143,7 @@ function renderGym(){
   if(modoEditar && mio){
     const ids = (rut[diaGym]||[]).filter(id=>BIB[id]);
     app.innerHTML = `
-    <div class="topbar"><h1>Mi rutina ✏️</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
+    <div class="topbar"><h1>Mi rutina ✏️</h1><div style="display:flex;align-items:center;gap:8px">${htmlSelectorTema()}<button class="gear" id="btn-ajustes">⚙️</button></div></div>
     <div class="seg" style="margin-bottom:10px">
       ${["A","B","C","D"].map(d=>`<button data-d="${d}" class="${diaGym===d?"on":""}" style="font-size:12px">${esc(nombreRutina(perfil,d))}</button>`).join("")}
     </div>
@@ -1058,6 +1174,7 @@ function renderGym(){
       <div style="margin-top:14px"><button class="btn sec sm" id="bib-x">Cerrar</button></div>
     </div></div>` : ""}`;
 
+    wireSelectorTema();
     document.getElementById("btn-ajustes").onclick = renderAjustes;
     document.querySelectorAll(".seg button[data-d]").forEach(b=>b.onclick=()=>{diaGym=b.dataset.d; render();});
     document.getElementById("ed-ren").onclick = async ()=>{
@@ -1089,7 +1206,7 @@ function renderGym(){
   const done = reg ? reg.ejercicios.filter(x=>x.hecho).length : 0;
 
   app.innerHTML = `
-  <div class="topbar"><h1>Gym 🏋️</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
+  <div class="topbar"><h1>Gym 🏋️</h1><div style="display:flex;align-items:center;gap:8px">${htmlSelectorTema()}<button class="gear" id="btn-ajustes">⚙️</button></div></div>
 
   ${parejaPerfil ? `
   <div class="seg" style="margin-bottom:10px">
@@ -1143,6 +1260,7 @@ function renderGym(){
 
   ${mio?'<button class="btn sec sm" id="g-editar" style="margin-top:10px">✏️ Editar mi rutina</button>':""}`;
 
+  wireSelectorTema();
   document.getElementById("btn-ajustes").onclick = renderAjustes;
   document.getElementById("g-prev").onclick = async ()=>{ fechaGym = addDias(fechaGym,-1); await cargarGymDia(); render(); };
   const gn = document.getElementById("g-next");
@@ -1168,7 +1286,9 @@ function renderGym(){
   document.querySelectorAll(".chk").forEach(b=>{ if(b.tagName==="BUTTON") b.onclick = async ()=>{
     const x = sesionG.registro.ejercicios[parseInt(b.dataset.i)];
     x.hecho = !x.hecho;
-    await guardarSesion(); puntosCache=null; render();
+    await guardarSesion(); puntosCache=null;
+    window._entrenoHoy = fechaGym===hoy() ? sesionG.registro.ejercicios.every(y=>y.hecho) : window._entrenoHoy;
+    render();
   };});
   document.querySelectorAll(".kg").forEach(inp=>inp.onchange = async ()=>{
     const x = sesionG.registro.ejercicios[parseInt(inp.dataset.i)];
@@ -1239,13 +1359,14 @@ async function calcularPuntos(){
 }
 
 async function renderPuntos(){
-  app.innerHTML = `<div class="topbar"><h1>Puntos 🏆</h1><button class="gear" id="btn-ajustes">⚙️</button></div><p class="muted">Calculando…</p>`;
+  app.innerHTML = `<div class="topbar"><h1>Puntos 🏆</h1><div style="display:flex;align-items:center;gap:8px">${htmlSelectorTema()}<button class="gear" id="btn-ajustes">⚙️</button></div></div><p class="muted">Calculando…</p>`;
+  wireSelectorTema();
   document.getElementById("btn-ajustes").onclick = renderAjustes;
   if(!puntosCache) puntosCache = await calcularPuntos();
   if(vista!=="puntos") return;
   const lista = puntosCache;
   app.innerHTML = `
-  <div class="topbar"><h1>Puntos 🏆</h1><button class="gear" id="btn-ajustes">⚙️</button></div>
+  <div class="topbar"><h1>Puntos 🏆</h1><div style="display:flex;align-items:center;gap:8px">${htmlSelectorTema()}<button class="gear" id="btn-ajustes">⚙️</button></div></div>
   ${lista.map((p,i)=>`
     <div class="pcard ${i===0&&lista.length>1?"lider":""}">
       <div class="medal">${i===0 ? (lista.length>1?"🥇":"🏅") : "🥈"}</div>
@@ -1277,6 +1398,7 @@ async function renderPuntos(){
     <p class="pt"><b>1500 pts</b> · día de plan sorpresa</p>
     <p class="muted" style="margin-top:6px">Negociables a propuestas mas creativas 😄</p>
   </div>`;
+  wireSelectorTema();
   document.getElementById("btn-ajustes").onclick = renderAjustes;
 }
 
@@ -1286,7 +1408,17 @@ function renderAjustes(){
   ov.innerHTML = `
   <div class="sheet">
     <h2 style="margin-bottom:6px">Ajustes ⚙️</h2>
-    <div class="row">
+    <div style="background:var(--carrot-soft);border-radius:12px;padding:12px;margin-bottom:6px">
+      <p class="muted" style="margin:0 0 2px">Tu cuenta (email de acceso)</p>
+      <p style="font-weight:800;font-size:15px;word-break:break-all">${esc(emailUsuario || "—")}</p>
+    </div>
+    <label>Tema de la app</label>
+    <div class="temas" id="aj-temas" style="width:fit-content">
+      <button class="t-claro ${temaActual()==='claro'?'on':''}" data-t="claro" title="Claro"></button>
+      <button class="t-oscuro ${temaActual()==='oscuro'?'on':''}" data-t="oscuro" title="Oscuro"></button>
+      <button class="t-jugueton ${temaActual()==='jugueton'?'on':''}" data-t="jugueton" title="Juguetón"></button>
+    </div>
+    <div class="row" style="margin-top:12px">
       <div><label>Peso actual (kg)</label><input type="number" id="aj-peso" step="0.1" value="${perfil.peso}"></div>
       <div><label>Objetivo (kcal)</label><input type="number" id="aj-obj" value="${perfil.objetivo}"></div>
     </div>
@@ -1302,6 +1434,10 @@ function renderAjustes(){
   </div>`;
   document.body.appendChild(ov);
   ov.onclick = e => { if(e.target===ov) ov.remove(); };
+  ov.querySelectorAll("#aj-temas button").forEach(b=>b.onclick=()=>{
+    aplicarTema(b.dataset.t);
+    ov.querySelectorAll("#aj-temas button").forEach(x=>x.classList.toggle("on",x===b));
+  });
   ov.querySelector("#aj-recalc").onclick=()=>{
     const p = parseFloat(ov.querySelector("#aj-peso").value)||perfil.peso;
     ov.querySelector("#aj-obj").value = calcularObjetivo({...perfil, peso:p});
@@ -1321,7 +1457,7 @@ function renderAjustes(){
   ov.querySelector("#aj-x").onclick=()=>ov.remove();
   ov.querySelector("#aj-salir").onclick=async ()=>{
     await sb.auth.signOut();
-    uid=null; perfil=null; parejaPerfil=null; entradas=[]; ov.remove(); render();
+    uid=null; perfil=null; parejaPerfil=null; entradas=[]; emailUsuario=null; ov.remove(); render();
   };
 }
 
@@ -1330,9 +1466,9 @@ if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch
   if(!sb){ render(); return; }
   const {data:{session}} = await sb.auth.getSession();
   if(session){
-    uid = session.user.id;
+    uid = session.user.id; emailUsuario = session.user.email;
     await cargarPerfiles();
-    if(perfil){ gymUser = uid; await cargarDia(); await cargarGymDia(); await cargarCompartidas(); }
+    if(perfil){ gymUser = uid; await cargarDia(); await cargarGymDia(); await cargarCompartidas(); window._entrenoHoy = await entrenoHoy(uid); }
   }
   render();
 })();
