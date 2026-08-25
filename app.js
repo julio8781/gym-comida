@@ -115,23 +115,29 @@ async function avisar(userId, titulo, cuerpo){
 
 // Semáforo de calorías: avisa a MI móvil al cruzar naranja o rojo
 let ultimoColorAvisado = null;
-function chequearSemaforo(total, objetivo){
+async function chequearSemaforo(total, objetivo){
   if(!objetivo) return;
   const ratio = total/objetivo;
   let color = "verde";
   if(ratio > 0.90) color = "rojo";
   else if(ratio >= 0.75) color = "naranja";
-  if(color === ultimoColorAvisado) return;   // no repetir el mismo aviso
+  if(color === ultimoColorAvisado) return;
+  ultimoColorAvisado = color;
   const rest = Math.max(0, Math.round(objetivo - total));
-  if(color === "naranja"){
-    ultimoColorAvisado = "naranja";
-    avisar(uid, "🟠 Ojo con las calorías", "Te quedan "+rest+" kcal para tu objetivo de hoy.");
-  } else if(color === "rojo"){
-    ultimoColorAvisado = "rojo";
-    avisar(uid, "🔴 ¡Cuidado!", "Solo te quedan "+rest+" kcal y aún puede faltar la cena.");
-  } else {
-    ultimoColorAvisado = "verde";
-  }
+  let titulo = null, cuerpo = null;
+  if(color === "naranja"){ titulo = "🟠 Ojo con las calorías"; cuerpo = "Te quedan "+rest+" kcal para tu objetivo de hoy."; }
+  else if(color === "rojo"){ titulo = "🔴 ¡Cuidado!"; cuerpo = "Solo te quedan "+rest+" kcal y aún puede faltar la cena."; }
+  if(!titulo) return;
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    await reg.showNotification(titulo, {
+      body: cuerpo,
+      icon: "https://gym.alvarezjulio.com/icon-192.png",
+      badge: "https://gym.alvarezjulio.com/icon-192.png",
+      vibrate: [300,120,300],
+      tag: "semaforo", renotify: true, requireInteraction: true,
+    });
+  }catch(e){}
 }
 
 /* ===== ZANAHORIA REACTIVA (SVG) ===== */
@@ -939,13 +945,12 @@ function renderDiario(){
         });
         if(e2) errorMsg = "Tu comida se guardó, pero no se pudo compartir: "+e2.message;
       }
-      pendiente=null; fotoPend=null; puntosCache=null; render();
-
-            // avisar a la pareja de que registré una comida
+            // avisar a la pareja ANTES de limpiar pendiente
       if(parejaPerfil){
         const nombreComida = (pendiente.alimentos||[]).map(a=>a.nombre).slice(0,2).join(", ");
         avisar(parejaPerfil.user_id, "💛 "+perfil.nombre+" ha comido", nombreComida || "Ha registrado una comida");
       }
+      pendiente=null; fotoPend=null; puntosCache=null; render();
 
     };
     document.getElementById("btn-add").onclick = ()=>confirmarComida(false);
