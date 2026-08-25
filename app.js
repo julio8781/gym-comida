@@ -53,6 +53,54 @@ function rotarTema(){
 }
 aplicarTema(temaActual());
 
+/* ===== NOTIFICACIONES PUSH ===== */
+const PUSH_WORKER = "https://pastanaga-push.alvarezjuliodeveloper.workers.dev";
+const VAPID_PUBLIC = "BPvEbZLMuW8WCz_PtPLjbbflzg-W_pTcsMOiXKn50hcywto_SAWEKtPZOOFdIfZl9duxgVL97GqfbRDkl-67ZD0";
+
+function urlB64ToUint8(base64){
+  const pad = "=".repeat((4 - base64.length % 4) % 4);
+  const b64 = (base64 + pad).replace(/-/g,"+").replace(/_/g,"/");
+  const raw = atob(b64);
+  return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+}
+
+async function activarPush(){
+  if(!("serviceWorker" in navigator) || !("PushManager" in window)){
+    alert("Tu navegador no soporta notificaciones push"); return null;
+  }
+  const permiso = await Notification.requestPermission();
+  if(permiso !== "granted"){ alert("No diste permiso para notificaciones"); return null; }
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if(!sub){
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlB64ToUint8(VAPID_PUBLIC),
+    });
+  }
+  // guardar la suscripción en Supabase
+  const subJson = sub.toJSON();
+  await sb.from("pastanaga_push").upsert(
+    { user_id: uid, subscription: subJson },
+    { onConflict: "user_id" }
+  );
+  return sub;
+}
+
+async function probarPush(){
+  const sub = await activarPush();
+  if(!sub) return false;
+  try{
+    const res = await fetch(PUSH_WORKER, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+    const data = await res.json();
+    return data.ok;
+  }catch(e){ alert("Error enviando push: "+e); return false; }
+}
+
 /* ===== ZANAHORIA REACTIVA (SVG) ===== */
 // gordura 0..1 (0 esbelta, 1 rechoncha) · animo 'feliz'|'normal'|'mal' · noche bool
 function svgZanahoria({gordura=0.5, animo='normal', noche=false}={}){
@@ -1412,6 +1460,11 @@ function renderAjustes(){
       <p class="muted" style="margin:0 0 2px">Tu cuenta (email de acceso)</p>
       <p style="font-weight:800;font-size:15px;word-break:break-all">${esc(emailUsuario || "—")}</p>
     </div>
+
+        <label>Notificaciones</label>
+    <button class="btn sec sm" id="aj-push">🔔 Activar y probar notificación</button>
+    <p class="muted" style="margin-top:6px">Te llegará un push de prueba a este móvil.</p>
+
     <label>Tema de la app</label>
     <div class="temas" id="aj-temas" style="width:fit-content">
       <button class="t-claro ${temaActual()==='claro'?'on':''}" data-t="claro" title="Claro"></button>
@@ -1454,6 +1507,14 @@ function renderAjustes(){
     puntosCache=null;
     ov.remove(); render();
   };
+
+    ov.querySelector("#aj-push").onclick = async (e)=>{
+    const b = e.target; b.disabled = true; b.textContent = "Enviando…";
+    const ok = await probarPush();
+    b.disabled = false;
+    b.textContent = ok ? "✓ ¡Enviada! Míra la notificación" : "🔔 Reintentar";
+  };
+  
   ov.querySelector("#aj-x").onclick=()=>ov.remove();
   ov.querySelector("#aj-salir").onclick=async ()=>{
     await sb.auth.signOut();
