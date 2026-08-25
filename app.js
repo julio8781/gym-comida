@@ -664,7 +664,8 @@ function renderDiario(){
   const esHoy = fechaSel === hoy();
     if(mio && esHoy) chequearSemaforo(total, pAct.objetivo);
   const alerta = esHoy && !pasado && new Date().getHours() >= 18 && total >= pAct.objetivo * 0.7;
-  const colorAnillo = pasado ? "var(--red)" : alerta ? "var(--orange)" : "var(--green)";
+  const ratioAnillo = total / pAct.objetivo;
+  const colorAnillo = ratioAnillo > 0.90 ? "var(--red)" : ratioAnillo >= 0.75 ? "var(--orange)" : "var(--green)";
   const R=58, C=2*Math.PI*R;
 
   app.innerHTML = `
