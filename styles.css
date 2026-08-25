@@ -144,20 +144,21 @@
 .t-oscuro{background:#1a1a2e}
 .t-jugueton{background:#ff6b9d}
 
-/* ===== Zanahoria reactiva (nueva) ===== */
+/* ===== Zanahoria reactiva ===== */
 .pz-corre{transform-origin:150px 210px;animation:pzCorre 1.3s ease-in-out infinite}
 @keyframes pzCorre{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-6px) rotate(3deg)}}
 .pz-bd,.pz-bd *{transform-origin:180px 168px;animation:pzBd .65s ease-in-out infinite}
 .pz-bt,.pz-bt *{transform-origin:120px 158px;animation:pzBt .65s ease-in-out infinite}
 @keyframes pzBd{0%,100%{rotate:0deg}50%{rotate:-24deg}}
 @keyframes pzBt{0%,100%{rotate:0deg}50%{rotate:24deg}}
-.pz-pd{transform-origin:158px 288px;animation:pzPd .65s ease-in-out infinite}
-.pz-pt{transform-origin:140px 268px;animation:pzPt .65s ease-in-out infinite}
-@keyframes pzPd{0%,100%{rotate:0deg}50%{rotate:20deg}}
-@keyframes pzPt{0%,100%{rotate:0deg}50%{rotate:-20deg}}
-.pz-resp{transform-origin:150px 260px;animation:pzResp 3.4s ease-in-out infinite}
-.pz-resp.pz-lento{animation:pzResp 4.6s ease-in-out infinite}
-@keyframes pzResp{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+.pz-resp{transform-origin:150px 300px;animation:pzResp 2.8s ease-in-out infinite, pzVaiven 4.2s ease-in-out infinite}
+.pz-resp.pz-lento{animation:pzResp 3.6s ease-in-out infinite, pzVaiven 5s ease-in-out infinite}
+@keyframes pzResp{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes pzVaiven{0%,100%{rotate:-3deg}50%{rotate:3deg}}
+.pz-mece-i{transform-origin:var(--armXi) var(--armYi);animation:pzMeceI 2.4s ease-in-out infinite}
+.pz-mece-d{transform-origin:var(--armXd) var(--armYi);animation:pzMeceD 2.4s ease-in-out infinite}
+@keyframes pzMeceI{0%,100%{rotate:0deg}50%{rotate:12deg}}
+@keyframes pzMeceD{0%,100%{rotate:0deg}50%{rotate:-12deg}}
 .pz-gota{animation:pzCae 2.6s ease-in infinite;opacity:.85}
 @keyframes pzCae{0%{transform:translateY(0);opacity:.85}70%{opacity:.85}100%{transform:translateY(28px);opacity:0}}
 .pz-z1{animation:pzFlota 2.6s ease-out infinite}
