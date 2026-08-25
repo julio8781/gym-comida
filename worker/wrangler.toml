@@ -1,0 +1,4 @@
+﻿name = "pastanaga-push"
+main = "index.js"
+compatibility_date = "2026-08-25"
+compatibility_flags = ["nodejs_compat"]
