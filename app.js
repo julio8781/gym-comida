@@ -101,6 +101,39 @@ async function probarPush(){
   }catch(e){ alert("Error enviando push: "+e); return false; }
 }
 
+// Avisa a un usuario (por su user_id) llamando al Worker
+async function avisar(userId, titulo, cuerpo){
+  if(!userId) return;
+  try{
+    await fetch(PUSH_WORKER, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ user_id: userId, titulo, cuerpo }),
+    });
+  }catch(e){ /* si falla el aviso, no rompemos nada */ }
+}
+
+// Semáforo de calorías: avisa a MI móvil al cruzar naranja o rojo
+let ultimoColorAvisado = null;
+function chequearSemaforo(total, objetivo){
+  if(!objetivo) return;
+  const ratio = total/objetivo;
+  let color = "verde";
+  if(ratio > 0.90) color = "rojo";
+  else if(ratio >= 0.75) color = "naranja";
+  if(color === ultimoColorAvisado) return;   // no repetir el mismo aviso
+  const rest = Math.max(0, Math.round(objetivo - total));
+  if(color === "naranja"){
+    ultimoColorAvisado = "naranja";
+    avisar(uid, "🟠 Ojo con las calorías", "Te quedan "+rest+" kcal para tu objetivo de hoy.");
+  } else if(color === "rojo"){
+    ultimoColorAvisado = "rojo";
+    avisar(uid, "🔴 ¡Cuidado!", "Solo te quedan "+rest+" kcal y aún puede faltar la cena.");
+  } else {
+    ultimoColorAvisado = "verde";
+  }
+}
+
 /* ===== ZANAHORIA REACTIVA (SVG) ===== */
 // gordura 0..1 (0 esbelta, 1 rechoncha) · animo 'feliz'|'normal'|'mal' · noche bool
 function svgZanahoria({gordura=0.5, animo='normal', noche=false}={}){
@@ -621,6 +654,7 @@ function renderDiario(){
   const rest = pAct.objetivo - total;
   const pct = Math.min(1, total/pAct.objetivo);
   const pasado = total > pAct.objetivo;
+    if(mio && esHoy) chequearSemaforo(total, pAct.objetivo);
   const esHoy = fechaSel === hoy();
   const alerta = esHoy && !pasado && new Date().getHours() >= 18 && total >= pAct.objetivo * 0.7;
   const colorAnillo = pasado ? "var(--red)" : alerta ? "var(--orange)" : "var(--green)";
@@ -905,6 +939,13 @@ function renderDiario(){
         if(e2) errorMsg = "Tu comida se guardó, pero no se pudo compartir: "+e2.message;
       }
       pendiente=null; fotoPend=null; puntosCache=null; render();
+
+            // avisar a la pareja de que registré una comida
+      if(parejaPerfil){
+        const nombreComida = (pendiente.alimentos||[]).map(a=>a.nombre).slice(0,2).join(", ");
+        avisar(parejaPerfil.user_id, "💛 "+perfil.nombre+" ha comido", nombreComida || "Ha registrado una comida");
+      }
+
     };
     document.getElementById("btn-add").onclick = ()=>confirmarComida(false);
     const ba2 = document.getElementById("btn-add2");
