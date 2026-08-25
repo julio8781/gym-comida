@@ -142,43 +142,127 @@ async function chequearSemaforo(total, objetivo){
 
 /* ===== ZANAHORIA REACTIVA (SVG) ===== */
 // gordura 0..1 (0 esbelta, 1 rechoncha) · animo 'feliz'|'normal'|'mal' · noche bool
-function svgZanahoria({gordura=0.5, animo='normal', noche=false}={}){
+// ===== Pega esta función en tu app.js reemplazando la svgZanahoria actual =====
+// gordura 0..1 (0 flaca, 1 bola exagerada) · animo 'feliz'|'normal'|'mal' · noche bool
+// - Cuerpo: lo marca SIEMPRE la gordura (noche no adelgaza).
+// - Pose: feliz -> corre; normal/mal -> de pie. Noche -> ojos cerrados + zzz encima.
+function svgZanahoria({gordura=0.3, animo='normal', noche=false}={}){
   gordura = Math.max(0, Math.min(1, gordura));
-  const w = 95 + gordura*145;
-  const cx = 130;
-  const bodyTop = 120;
-  const extraLen = gordura*30;
-  const bodyBot = 330 + extraLen;
+  const corre = (animo==='feliz' && !noche);
+
+  // Ancho del cuerpo según gordura (flaca ~58, bola ~150)
+  const w = 58 + gordura*92;
+  const cx = 150;
+  const topY = 102;                 // donde empieza el cuerpo bajo el flequillo
+  const botY = 300 + gordura*8;     // punta inferior
   const half = w/2;
-  const bulge = 8 + gordura*38;
-  const body = `M ${cx-half} ${bodyTop}
-    Q ${cx-half-bulge} ${bodyTop+70} ${cx-half*0.5} ${bodyTop+140+extraLen}
-    Q ${cx} ${bodyBot+15} ${cx+half*0.5} ${bodyTop+140+extraLen}
-    Q ${cx+half+bulge} ${bodyTop+70} ${cx+half} ${bodyTop}
-    Q ${cx} ${bodyTop-24} ${cx-half} ${bodyTop} Z`;
-  const eyeY = bodyTop+55, eyeDx = Math.max(18, w*0.15);
-  const eye = (x)=> noche
-    ? `<path d="M ${x-9} ${eyeY} Q ${x} ${eyeY+8} ${x+9} ${eyeY}" stroke="#3a2a12" stroke-width="4" fill="none" stroke-linecap="round"/>`
-    : animo==='mal'
-      ? `<path d="M ${x-8} ${eyeY-5} Q ${x} ${eyeY} ${x+8} ${eyeY-5}" stroke="#3a2a12" stroke-width="3.5" fill="none" stroke-linecap="round"/><g class="ojo-parpado" style="transform-origin:${x}px ${eyeY+3}px"><circle cx="${x}" cy="${eyeY+3}" r="7" fill="#3a2a12"/><circle cx="${x+2}" cy="${eyeY+1}" r="2" fill="#fff"/></g>`
-      : `<g class="ojo-parpado" style="transform-origin:${x}px ${eyeY}px"><circle cx="${x}" cy="${eyeY}" r="8" fill="#3a2a12"/><circle cx="${x+3}" cy="${eyeY-3}" r="2.5" fill="#fff"/></g>`;
-  let mouth;
-  if(animo==='feliz') mouth = `<path d="M ${cx-20} ${eyeY+26} Q ${cx} ${eyeY+50} ${cx+20} ${eyeY+26}" stroke="#3a2a12" stroke-width="4" fill="none" stroke-linecap="round"/>`;
-  else if(animo==='mal') mouth = `<path d="M ${cx-18} ${eyeY+46} Q ${cx} ${eyeY+20} ${cx+18} ${eyeY+46}" stroke="#3a2a12" stroke-width="4.5" fill="none" stroke-linecap="round"/>`;
-  else mouth = `<line x1="${cx-14}" y1="${eyeY+32}" x2="${cx+14}" y2="${eyeY+32}" stroke="#3a2a12" stroke-width="4" stroke-linecap="round"/>`;
-  const cheeks = animo==='feliz' ? `<circle cx="${cx-eyeDx-6}" cy="${eyeY+18}" r="7" fill="#ff9d6b" opacity=".6"/><circle cx="${cx+eyeDx+6}" cy="${eyeY+18}" r="7" fill="#ff9d6b" opacity=".6"/>` : '';
-  const sweat = animo==='mal'
-    ? `<path d="M ${cx+half-4} ${bodyTop+28} q -6 12 0 18 q 6 -6 0 -18" fill="#7ec8ff"/>
-       <path d="M ${cx-half+4} ${bodyTop+34} q -5 10 0 15 q 5 -5 0 -15" fill="#7ec8ff" opacity=".85"/>
-       <path d="M ${cx+eyeDx+22} ${eyeY-8} q -4 8 0 12 q 4 -4 0 -12" fill="#7ec8ff" opacity=".7"/>` : '';
-  const zzz = noche ? `<text x="${cx+half}" y="${bodyTop-10}" fill="#fff" font-size="22" opacity=".8">z</text><text x="${cx+half+16}" y="${bodyTop-26}" fill="#fff" font-size="16" opacity=".6">z</text>` : '';
-  const leaf = (dx,h,rot)=>`<path d="M ${cx+dx} ${bodyTop-4} Q ${cx+dx+rot} ${bodyTop-h} ${cx+dx+rot*0.3} ${bodyTop-h-6} Q ${cx+dx-rot*0.2} ${bodyTop-h+10} ${cx+dx} ${bodyTop-4} Z" fill="#3faa52"/>`;
-  return `<svg viewBox="0 0 260 400" width="150" xmlns="http://www.w3.org/2000/svg">
-    ${leaf(-14,60,-22)}${leaf(0,74,0)}${leaf(14,60,22)}
-    <path d="${body}" fill="#f97316" stroke="#e2620a" stroke-width="3"/>
-    <path d="M ${cx-half+10} ${bodyTop+20} Q ${cx} ${bodyTop+6} ${cx+half-10} ${bodyTop+20}" stroke="#ffb37a" stroke-width="3" fill="none" opacity=".5"/>
-    <path d="M ${cx-half+16} ${bodyTop+55} Q ${cx} ${bodyTop+42} ${cx+half-16} ${bodyTop+55}" stroke="#ffb37a" stroke-width="2.5" fill="none" opacity=".4"/>
-    ${eye(cx-eyeDx)}${eye(cx+eyeDx)}${cheeks}${mouth}${sweat}${zzz}
+  const bulge = gordura*46;         // cuánto se hincha la panza
+
+  // Cuerpo (path simétrico que se ensancha con la gordura)
+  const midY = topY + (botY-topY)*0.55;
+  const body = `M ${cx-half*0.55} ${topY}
+    Q ${cx-half-bulge} ${midY} ${cx-half*0.28} ${botY-36}
+    Q ${cx} ${botY} ${cx+half*0.28} ${botY-36}
+    Q ${cx+half+bulge} ${midY} ${cx+half*0.55} ${topY}
+    Q ${cx} ${topY-16} ${cx-half*0.55} ${topY} Z`;
+
+  // Flequillo (siempre igual; verde normal, o verde apagado de noche)
+  const g1 = noche ? '#2f8a42' : '#6fb838';
+  const g2 = noche ? '#37974a' : '#8fce46';
+  const g3 = noche ? '#2f8a42' : '#7cc142';
+  const flequillo = `
+    <path d="M ${cx} ${topY-4} Q ${cx-18} ${topY-56} ${cx-30} ${topY-66} Q ${cx-24} ${topY-42} ${cx-16} ${topY-26} Z" fill="${g1}"/>
+    <path d="M ${cx} ${topY-6} Q ${cx-10} ${topY-64} ${cx-18} ${topY-76} Q ${cx-10} ${topY-46} ${cx-6} ${topY-28} Q ${cx-12} ${topY-58} ${cx} ${topY-66} Q ${cx+2} ${topY-38} ${cx+2} ${topY-8} Z" fill="${g2}"/>
+    <path d="M ${cx} ${topY-6} Q ${cx+8} ${topY-66} ${cx+18} ${topY-74} Q ${cx+12} ${topY-46} ${cx+8} ${topY-28} Z" fill="${g3}"/>
+    <path d="M ${cx} ${topY-8} Q ${cx+22} ${topY-50} ${cx+40} ${topY-50} Q ${cx+26} ${topY-30} ${cx+12} ${topY-8} Z" fill="${g1}"/>
+    <path d="M ${cx} ${topY-8} Q ${cx-22} ${topY-50} ${cx-40} ${topY-50} Q ${cx-26} ${topY-30} ${cx-12} ${topY-8} Z" fill="${g2}"/>`;
+
+  // Colores del cuerpo (naranja normal, apagado de noche)
+  const naranja = noche ? '#e56a13' : '#f7941d';
+  const borde = noche ? '#c15409' : '#d97614';
+
+  // Cara
+  const eyeY = topY + 30 + gordura*6;
+  const eyeDx = Math.max(11, w*0.14);
+  const ex1 = cx-eyeDx, ex2 = cx+eyeDx;
+  let ojos, boca;
+  if(noche){
+    ojos = `<path d="M ${ex1-9} ${eyeY} Q ${ex1} ${eyeY+8} ${ex1+9} ${eyeY}" stroke="#2a1a08" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M ${ex2-9} ${eyeY} Q ${ex2} ${eyeY+8} ${ex2+9} ${eyeY}" stroke="#2a1a08" stroke-width="4" fill="none" stroke-linecap="round"/>`;
+    boca = `<ellipse cx="${cx+8}" cy="${eyeY+30}" rx="${8+gordura*3}" ry="5" fill="#8a1f1f"/>`;
+  } else if(animo==='mal'){
+    ojos = `<path d="M ${ex1-9} ${eyeY-2} Q ${ex1} ${eyeY+6} ${ex1+9} ${eyeY-2}" stroke="#2a1a08" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+            <path d="M ${ex2-9} ${eyeY-2} Q ${ex2} ${eyeY+6} ${ex2+9} ${eyeY-2}" stroke="#2a1a08" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
+    boca = `<path d="M ${cx-18} ${eyeY+34} Q ${cx} ${eyeY+18} ${cx+18} ${eyeY+34}" stroke="#8a1f1f" stroke-width="4.5" fill="none" stroke-linecap="round"/>`;
+  } else {
+    // feliz / normal -> ojos grandes con brillo
+    ojos = `<ellipse cx="${ex1}" cy="${eyeY}" rx="12" ry="14" fill="#fff"/><ellipse cx="${ex2}" cy="${eyeY}" rx="12" ry="14" fill="#fff"/>
+            <circle cx="${ex1+3}" cy="${eyeY+3}" r="6.5" fill="#2a1a08"/><circle cx="${ex1+5}" cy="${eyeY}" r="2.5" fill="#fff"/>
+            <circle cx="${ex2+3}" cy="${eyeY+3}" r="6.5" fill="#2a1a08"/><circle cx="${ex2+5}" cy="${eyeY}" r="2.5" fill="#fff"/>`;
+    if(animo==='feliz'){
+      boca = `<path d="M ${cx-18} ${eyeY+24} Q ${cx} ${eyeY+46} ${cx+20} ${eyeY+24} Q ${cx+12} ${eyeY+40} ${cx} ${eyeY+40} Q ${cx-10} ${eyeY+40} ${cx-18} ${eyeY+24} Z" fill="#8a1f1f"/>
+              <path d="M ${cx-15} ${eyeY+27} Q ${cx} ${eyeY+32} ${cx+17} ${eyeY+26} L ${cx+16} ${eyeY+29} Q ${cx} ${eyeY+35} ${cx-14} ${eyeY+30} Z" fill="#fff"/>`;
+    } else {
+      boca = `<line x1="${cx-14}" y1="${eyeY+28}" x2="${cx+14}" y2="${eyeY+28}" stroke="#8a1f1f" stroke-width="4" stroke-linecap="round"/>`;
+    }
+  }
+
+  // Sudor si mal
+  const gota = (animo==='mal' && !noche)
+    ? `<path class="pz-gota" d="M ${cx+half*0.7} ${eyeY-4} q -6 12 0 18 q 6 -6 0 -18" fill="#7ec8ff"/>` : '';
+
+  // zzz de noche
+  const zzz = noche
+    ? `<text class="pz-z1" x="${cx+half*0.6+30}" y="${topY+48}" fill="#fff" font-size="22" opacity=".8">z</text>
+       <text class="pz-z2" x="${cx+half*0.6+46}" y="${topY+28}" fill="#fff" font-size="15" opacity=".6">z</text>` : '';
+
+  // --- EXTREMIDADES ---
+  // Manita de 5 dedos reutilizable
+  const mano = (mx,my,fill)=>`
+    <circle cx="${mx}" cy="${my}" r="8.5" fill="${fill}" stroke="${borde}" stroke-width="2"/>
+    <path d="M ${mx-6} ${my-6} l -3 -6 M ${mx-1} ${my-8} l -1 -7 M ${mx+4} ${my-8} l 2 -7 M ${mx+7} ${my-4} l 6 -4 M ${mx-8} ${my} l -7 -1"
+          stroke="${fill}" stroke-width="4" fill="none" stroke-linecap="round"/>`;
+  // Piececito de dedos
+  const pie = (px,py,dir)=>`
+    <path d="M ${px} ${py} q ${dir*13} 2 ${dir*18} 9 q ${-dir*3} 5 ${-dir*10} 5 q ${-dir*10} 0 ${-dir*16} -6 Z" fill="${naranja}" stroke="${borde}" stroke-width="2"/>
+    <path d="M ${px+dir*7} ${py+3} l ${dir*3} 4 M ${px+dir*11} ${py+2} l ${dir*3} 5 M ${px+dir*15} ${py+1} l ${dir*2} 5" stroke="${borde}" stroke-width="1.5" fill="none" stroke-linecap="round"/>`;
+
+  let brazos, piernas;
+  const armY = topY + 56 + gordura*10;
+  if(corre){
+    // brazos y piernas en pose de carrera (animadas)
+    brazos = `
+      <path class="pz-bt" d="M ${cx-half*0.5} ${armY} Q ${cx-half-24} ${armY-10} ${cx-half-34} ${armY-30}" stroke="${borde}" stroke-width="10" fill="none" stroke-linecap="round"/>
+      <g class="pz-bt">${mano(cx-half-38, armY-34, naranja)}</g>
+      <path class="pz-bd" d="M ${cx+half*0.5} ${armY+8} Q ${cx+half+22} ${armY+6} ${cx+half+32} ${armY+24}" stroke="${naranja}" stroke-width="10" fill="none" stroke-linecap="round"/>
+      <g class="pz-bd">${mano(cx+half+36, armY+28, naranja)}</g>`;
+    piernas = `
+      <g class="pz-pt"><path d="M ${cx-14} ${botY-34} Q ${cx-34} ${botY-6} ${cx-50} ${botY+8}" stroke="${naranja}" stroke-width="12" fill="none" stroke-linecap="round"/>${pie(cx-50, botY+6, -1)}</g>
+      <g class="pz-pd"><path d="M ${cx+8} ${botY-18} Q ${cx+24} ${botY+8} ${cx+42} ${botY+18}" stroke="${naranja}" stroke-width="12" fill="none" stroke-linecap="round"/>${pie(cx+42, botY+16, 1)}</g>`;
+  } else {
+    // de pie: brazos relajados a los lados, piececitos abajo
+    const armDrop = animo==='mal' ? 26 : 34;
+    brazos = `
+      <path d="M ${cx-half*0.5} ${armY} Q ${cx-half-18} ${armY+armDrop-10} ${cx-half-24} ${armY+armDrop}" stroke="${borde}" stroke-width="10" fill="none" stroke-linecap="round"/>
+      <g>${mano(cx-half-26, armY+armDrop+4, naranja)}</g>
+      <path d="M ${cx+half*0.5} ${armY} Q ${cx+half+18} ${armY+armDrop-10} ${cx+half+24} ${armY+armDrop}" stroke="${naranja}" stroke-width="10" fill="none" stroke-linecap="round"/>
+      <g>${mano(cx+half+26, armY+armDrop+4, naranja)}</g>`;
+    piernas = `
+      <g><path d="M ${cx-12} ${botY-16} Q ${cx-16} ${botY+6} ${cx-28} ${botY+12}" stroke="${naranja}" stroke-width="12" fill="none" stroke-linecap="round"/>${pie(cx-28, botY+10, -1)}</g>
+      <g><path d="M ${cx+12} ${botY-16} Q ${cx+16} ${botY+6} ${cx+28} ${botY+12}" stroke="${naranja}" stroke-width="12" fill="none" stroke-linecap="round"/>${pie(cx+28, botY+10, 1)}</g>`;
+  }
+
+  const claseAnim = corre ? 'pz-corre' : (gordura>0.6 ? 'pz-resp pz-lento' : 'pz-resp');
+
+  return `<svg viewBox="0 0 300 380" width="150" xmlns="http://www.w3.org/2000/svg">
+    <g class="${claseAnim}">
+      ${flequillo}
+      ${brazos}
+      ${piernas}
+      <path d="${body}" fill="${naranja}" stroke="${borde}" stroke-width="3.5"/>
+      <path d="M ${cx-half*0.4} ${eyeY+2} Q ${cx} ${eyeY-4} ${cx+half*0.4} ${eyeY+2}" stroke="${noche?'#ffb85c':'#ffb85c'}" stroke-width="3" fill="none" opacity=".5"/>
+      ${ojos}${boca}${gota}${zzz}
+    </g>
   </svg>`;
 }
 // Construye el bloque de escenario a partir del estado del día
