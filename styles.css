@@ -179,3 +179,7 @@
   background-position: center;
   background-repeat: no-repeat;
 }
+.escena .zsvg .pp-pastanaga{
+  position: relative;
+  bottom: -18px;   /* la baja para que pise el suelo; ajusta el número */
+}
