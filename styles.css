@@ -188,3 +188,10 @@
   background: transparent;
   text-shadow: 0 1px 4px rgba(0,0,0,.7);
 }
+
+ /*probar el pestañeo si no borrar esta mierda */
+.pp-pastanaga{ animation: ppResp 3s ease-in-out infinite, ppGuino 5s ease-in-out infinite; }
+.pp-pastanaga.pp-lento{ animation: ppResp 4.2s ease-in-out infinite, ppGuino 5s ease-in-out infinite; }
+.pp-pastanaga.pp-dormida{ animation: ppResp 4.5s ease-in-out infinite; }
+@keyframes ppResp{ 0%,100%{ transform: translateY(0) scale(1); } 50%{ transform: translateY(-5px) scale(1.02); } }
+@keyframes ppGuino{ 0%,92%,100%{ transform: scaleY(1); } 95%{ transform: scaleY(0.96); } 97%{ transform: scaleY(1); } }
