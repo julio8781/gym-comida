@@ -207,15 +207,17 @@ function svgZanahoria({gordura=0.3, animo='normal', noche=false}={}){
 // Elige la imagen de Pastanaga según el estado del día
 function imgPastanaga({gordura=0.3, animo='normal', noche=false}={}){
   let estado;
-  if(noche)              estado = 'dormida';   // de noche duerme (pase lo que pase)
-  else if(gordura > 0.6) estado = 'gorda';     // te pasaste bastante
-  else if(animo === 'mal') estado = 'triste';  // vas fatal de calorías
-  else if(gordura < 0.2) estado = 'flaca';     // vas muy bien / poco comido
-  else                   estado = 'normal';    // en su punto
+  if(noche)                estado = 'dormida';   // de noche duerme
+  else if(gordura > 0.6)   estado = 'gorda';     // te pasaste
+  else if(animo === 'mal') estado = 'triste';    // vas fatal
+  else                     estado = 'normal';    // por defecto
+
+  // La flaca está dañada, así que su archivo es el de normal
+  const archivo = estado;  // normal/gorda/triste/dormida
 
   const claseAnim = (estado === 'gorda') ? 'pp-resp pp-lento' : 'pp-resp';
   return `<img class="pp-pastanaga ${claseAnim}"
-    src="https://gym.alvarezjulio.com/img/pet/${estado}.png?v=2"
+    src="https://gym.alvarezjulio.com/img/pet/${archivo}.png?v=2"
     alt="Pastanaga ${estado}" width="150">`;
 }
 // Construye el bloque de escenario a partir del estado del día
