@@ -78,12 +78,13 @@ async function activarPush(){
       applicationServerKey: urlB64ToUint8(VAPID_PUBLIC),
     });
   }
-  // guardar la suscripción en Supabase
+  // guardar la suscripción en Supabase (borro las viejas de este usuario y meto la nueva)
   const subJson = sub.toJSON();
-  await sb.from("pastanaga_push").upsert(
-    { user_id: uid, subscription: subJson },
-    { onConflict: "user_id" }
-  );
+  try{
+    await sb.from("pastanaga_push").delete().eq("user_id", uid);
+    const { error } = await sb.from("pastanaga_push").insert({ user_id: uid, subscription: subJson });
+    if(error) console.error("Error guardando suscripcion:", error);
+  }catch(e){ console.error("Fallo guardando push:", e); }
   return sub;
 }
 
