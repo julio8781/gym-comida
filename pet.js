@@ -25,9 +25,7 @@ function imgPastanaga({gordura=0.3, animo='normal', noche=false}={}){
   else if(animo === 'mal') estado = 'triste';
   else                     estado = 'normal';
 
-  let claseAnim = 'pp-resp';
-  if(estado === 'gorda')   claseAnim = 'pp-resp pp-lento';
-  if(estado === 'dormida') claseAnim = 'pp-resp pp-dormida';
+  const claseAnim = (estado === 'gorda') ? 'pp-resp pp-lento' : 'pp-resp';
   return `<img class="pp-pastanaga ${claseAnim}"
     src="https://gym.alvarezjulio.com/img/pet/${estado}.png?v=2"
     alt="Pastanaga ${estado}" width="150">`;
