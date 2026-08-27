@@ -215,7 +215,7 @@ function imgPastanaga({gordura=0.3, animo='normal', noche=false}={}){
 
   const claseAnim = (estado === 'gorda') ? 'pp-resp pp-lento' : 'pp-resp';
   return `<img class="pp-pastanaga ${claseAnim}"
-    src="https://gym.alvarezjulio.com/img/pet/${estado}.png?v=1"
+    src="https://gym.alvarezjulio.com/img/pet/${estado}.png?v=2"
     alt="Pastanaga ${estado}" width="150">`;
 }
 // Construye el bloque de escenario a partir del estado del día
