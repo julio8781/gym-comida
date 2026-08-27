@@ -142,7 +142,7 @@ async function chequearSemaforo(total, objetivo){
 }
 
 
-// Reemplaza tu svgZanahoria actual por esta (brazos animados también en reposo)
+
 function svgZanahoria({gordura=0.3, animo='normal', noche=false}={}){
   gordura = Math.max(0, Math.min(1, gordura));
   const corre = (animo==='feliz' && !noche);
@@ -203,6 +203,21 @@ function svgZanahoria({gordura=0.3, animo='normal', noche=false}={}){
     </g>
   </svg>`;
 }
+
+// Elige la imagen de Pastanaga según el estado del día
+function imgPastanaga({gordura=0.3, animo='normal', noche=false}={}){
+  let estado;
+  if(noche)              estado = 'dormida';   // de noche duerme (pase lo que pase)
+  else if(gordura > 0.6) estado = 'gorda';     // te pasaste bastante
+  else if(animo === 'mal') estado = 'triste';  // vas fatal de calorías
+  else if(gordura < 0.2) estado = 'flaca';     // vas muy bien / poco comido
+  else                   estado = 'normal';    // en su punto
+
+  const claseAnim = (estado === 'gorda') ? 'pp-resp pp-lento' : 'pp-resp';
+  return `<img class="pp-pastanaga ${claseAnim}"
+    src="https://gym.alvarezjulio.com/img/pet/${estado}.png?v=1"
+    alt="Pastanaga ${estado}" width="150">`;
+}
 // Construye el bloque de escenario a partir del estado del día
 function bloqueEscena({total, objetivo, entreno, nombre}){
   const noche = new Date().getHours() >= 21 || new Date().getHours() < 6;
@@ -226,7 +241,7 @@ function bloqueEscena({total, objetivo, entreno, nombre}){
   return `<div class="escena">
     ${estrellas}
     <div class="suelo"></div>
-    <div class="zsvg">${svgZanahoria({gordura, animo, noche})}</div>
+    <div class="zsvg">${imgPastanaga({gordura, animo, noche})}</div>
     <div class="estado-cap"><span>${esc(cap)}</span></div>
   </div>`;
 }

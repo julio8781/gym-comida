@@ -164,3 +164,12 @@
 .pz-z1{animation:pzFlota 2.6s ease-out infinite}
 .pz-z2{animation:pzFlota 2.6s ease-out infinite .4s}
 @keyframes pzFlota{0%{opacity:0;transform:translateY(6px)}40%{opacity:.8}100%{opacity:0;transform:translateY(-12px)}}
+
+/* ===== Pastanaga imagen ===== */
+.pp-pastanaga{ display:block; margin:0 auto; height:auto; }
+.pp-resp{ animation: ppResp 3s ease-in-out infinite; transform-origin:50% 100%; }
+.pp-resp.pp-lento{ animation: ppResp 4.2s ease-in-out infinite; }
+@keyframes ppResp{
+  0%,100%{ transform: translateY(0) scale(1); }
+  50%{ transform: translateY(-5px) scale(1.02); }
+}
