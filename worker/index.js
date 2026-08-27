@@ -13,21 +13,24 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-// Busca las suscripciones de un usuario en Supabase (puede tener varias: varios moviles)
 async function subsDeUsuario(userId, env) {
   const r = await fetch(
     SB_URL + "/rest/v1/pastanaga_push?user_id=eq." + userId + "&select=subscription",
     { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: "Bearer " + env.SUPABASE_SERVICE_KEY } }
   );
-  if (!r.ok) return [];
+  if (!r.ok) { console.log("Supabase fallo:", r.status); return []; }
   const filas = await r.json();
+  console.log("Suscripciones encontradas para", userId, ":", filas.length);
   return filas.map(f => f.subscription);
 }
 
 async function enviarA(subscription, titulo, cuerpo) {
   const message = { data: JSON.stringify({ titulo, cuerpo }), options: { ttl: 120 } };
   const payload = await buildPushPayload(message, subscription, VAPID);
-  return fetch(subscription.endpoint, { method: "POST", headers: payload.headers, body: payload.body });
+  const res = await fetch(subscription.endpoint, { method: "POST", headers: payload.headers, body: payload.body });
+  const txt = await res.text().catch(() => "");
+  console.log("Envio push ->", res.status, res.statusText, txt.slice(0, 200));
+  return res.status;
 }
 
 export default {
@@ -36,21 +39,33 @@ export default {
     if (request.method !== "POST") return new Response("Worker de Pastanaga vivo 🥕", { headers: CORS });
     try {
       const body = await request.json();
+      console.log("Recibido:", JSON.stringify({ user_id: body.user_id, titulo: body.titulo, tieneSubDirecta: !!body.subscription }));
       let subs = [];
 
-      // Modo 1: me pasan una suscripcion directa (prueba de Fase 1)
       if (body.subscription) subs = [body.subscription];
-      // Modo 2: me pasan un user_id -> busco sus suscripciones en Supabase
       else if (body.user_id) subs = await subsDeUsuario(body.user_id, env);
 
-      if (!subs.length) return new Response(JSON.stringify({ error: "sin suscripciones" }), { status: 404, headers: CORS });
+      if (!subs.length) {
+        console.log("Sin suscripciones para enviar");
+        return new Response(JSON.stringify({ error: "sin suscripciones" }), { status: 404, headers: CORS });
+      }
 
       const titulo = body.titulo || "Pastanaga 🥕";
       const cuerpo = body.cuerpo || "Tienes un aviso";
-      const resultados = await Promise.all(subs.map(s => enviarA(s, titulo, cuerpo).then(r => r.status).catch(() => 0)));
+      const resultados = [];
+      for (const s of subs) {
+        try {
+          const st = await enviarA(s, titulo, cuerpo);
+          resultados.push(st);
+        } catch (err) {
+          console.log("Error enviando a un movil:", String(err));
+          resultados.push(0);
+        }
+      }
 
       return new Response(JSON.stringify({ ok: true, enviados: resultados }), { headers: CORS });
     } catch (e) {
+      console.log("Error general:", String(e));
       return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: CORS });
     }
   },
