@@ -228,9 +228,9 @@ function bloqueEscena({total, objetivo, entreno, nombre}){
 
   const fondo = fondoEscena(nombre);
   return `<div class="escena escena--${fondo}"
-      style="background-image:url('https://gym.alvarezjulio.com/img/pet/fondo-${fondo}.png?v=1')">
+      style="background-image:url('https://gym.alvarezjulio.com/img/pet/fondo-${fondo}.png?v=2')">
     ${estrellas}
-    <div class="suelo"></div>
+   
     <div class="zsvg">${imgPastanaga({gordura, animo, noche})}</div>
     <div class="estado-cap"><span>${esc(cap)}</span></div>
   </div>`;
