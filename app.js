@@ -204,22 +204,7 @@ function svgZanahoria({gordura=0.3, animo='normal', noche=false}={}){
   </svg>`;
 }
 
-// Elige la imagen de Pastanaga según el estado del día
-function imgPastanaga({gordura=0.3, animo='normal', noche=false}={}){
-  let estado;
-  if(noche)                estado = 'dormida';   // de noche duerme
-  else if(gordura > 0.6)   estado = 'gorda';     // te pasaste
-  else if(animo === 'mal') estado = 'triste';    // vas fatal
-  else                     estado = 'normal';    // por defecto
 
-  // La flaca está dañada, así que su archivo es el de normal
-  const archivo = estado;  // normal/gorda/triste/dormida
-
-  const claseAnim = (estado === 'gorda') ? 'pp-resp pp-lento' : 'pp-resp';
-  return `<img class="pp-pastanaga ${claseAnim}"
-    src="https://gym.alvarezjulio.com/img/pet/${archivo}.png?v=2"
-    alt="Pastanaga ${estado}" width="150">`;
-}
 // Construye el bloque de escenario a partir del estado del día
 function bloqueEscena({total, objetivo, entreno, nombre}){
   const noche = new Date().getHours() >= 21 || new Date().getHours() < 6;
@@ -240,7 +225,10 @@ function bloqueEscena({total, objetivo, entreno, nombre}){
     const x = Math.round(Math.random()*90+3), y = Math.round(Math.random()*55+6);
     return '<span style="left:'+x+'%;top:'+y+'%"></span>';
   }).join('')+'</div>' : '';
-  return `<div class="escena">
+
+  const fondo = fondoEscena(nombre);
+  return `<div class="escena escena--${fondo}"
+      style="background-image:url('https://gym.alvarezjulio.com/img/pet/fondo-${fondo}.png?v=1')">
     ${estrellas}
     <div class="suelo"></div>
     <div class="zsvg">${imgPastanaga({gordura, animo, noche})}</div>

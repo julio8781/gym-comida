@@ -173,3 +173,9 @@
   0%,100%{ transform: translateY(0) scale(1); }
   50%{ transform: translateY(-5px) scale(1.02); }
 }
+
+.escena{
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
