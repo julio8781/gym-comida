@@ -19,9 +19,8 @@ function fondoEscena(nombre){
 
 // Elige la imagen de Pastanaga según el estado del día
 function imgPastanaga({gordura=0.3, animo='normal', noche=false}={}){
-  let estado;
-  if(noche)                estado = 'dormida';
-  else if(gordura > 0.6)   estado = 'gorda';
+    let estado;
+  if(gordura > 0.6)        estado = 'gorda';
   else if(animo === 'mal') estado = 'triste';
   else                     estado = 'normal';
 
