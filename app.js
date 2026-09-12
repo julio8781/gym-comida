@@ -513,11 +513,32 @@ async function cargarCompra(){
 
 const app = document.getElementById("app");
 const nav = document.getElementById("nav");
+
+// Botón de Cuentas 💰 en la barra (se añade por código para no tocar el index.html)
+if(nav && !nav.querySelector('[data-v="cuentas"]')){
+  const orig = nav.querySelector("button[data-v]");
+  if(orig){
+    const b = orig.cloneNode(true);
+    b.classList.remove("on");
+    b.setAttribute("data-v","cuentas");
+    const ico = b.querySelector(".ico");
+    if(ico) ico.textContent = "💰";
+    let hecho = false;
+    for(let i=b.childNodes.length-1;i>=0;i--){
+      const n = b.childNodes[i];
+      if(n.nodeType===3 && n.textContent.trim()){ n.textContent = ico ? "Cuentas" : "💰 Cuentas"; hecho = true; break; }
+    }
+    if(!hecho) b.textContent = "💰 Cuentas";
+    nav.appendChild(b);
+  }
+}
+
 nav.querySelectorAll("button").forEach(b=>b.onclick=async ()=>{
   vista=b.dataset.v; errorMsg="";
   if(vista==="diario"){ await cargarDia(); await cargarCompartidas(); }
   if(vista==="compra"){ await cargarCompra(); }
   if(vista==="gym"){ if(!gymUser) gymUser = uid; await cargarGymDia(); }
+  if(vista==="cuentas"){ if(window.renderCuentas) await renderCuentas(); return; }
   render();
 });
 
@@ -530,6 +551,7 @@ function render(){
   if(vista==="diario") renderDiario();
   else if(vista==="compra") renderCompra();
   else if(vista==="gym") renderGym();
+  else if(vista==="cuentas"){ if(window.renderCuentas) renderCuentas(); }
   else renderPuntos();
 }
 
