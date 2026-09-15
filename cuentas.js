@@ -48,11 +48,8 @@
     const gastos = movs.filter(m=>m.tipo==="gasto");
     const totalIn = ingresos.reduce((s,m)=>s+Number(m.importe),0);
     const totalGas = gastos.reduce((s,m)=>s+Number(m.importe),0);
-    const inPagado = ingresos.filter(m=>m.pagado).reduce((s,m)=>s+Number(m.importe),0);
-    const gasPagado = gastos.filter(m=>m.pagado).reduce((s,m)=>s+Number(m.importe),0);
-    const bote = inPagado - gasPagado;                 // dinero real en la cuenta
-    const pendGas = totalGas - gasPagado;              // gastos que faltan por pagar
-    const pendIn = totalIn - inPagado;                 // ingresos que faltan por entrar
+    const bote = totalIn - totalGas;                   // ingresos menos TODOS los gastos
+    const gasPagado = gastos.filter(m=>m.pagado).reduce((s,m)=>s+Number(m.importe),0); // solo informativo
 
     // gasto por categoría para la gráfica
     const porCat = {};
@@ -70,10 +67,10 @@
     </div>
     ${err?'<div class="err" style="margin-bottom:10px">⚠ '+esc2(err)+'</div>':""}
 
-    <div class="card" style="text-align:center">
-      <p class="muted" style="text-transform:uppercase;font-size:12px;letter-spacing:.5px">En la cuenta ahora</p>
-      <p style="font-size:44px;font-weight:800;letter-spacing:-1px;color:${bote<0?"var(--red)":"var(--green)"}">${eur(bote)}</p>
-      ${(pendGas>0||pendIn>0)?'<p class="muted" style="margin-top:2px">'+(pendIn>0?'faltan por entrar '+eur(pendIn):'')+(pendIn>0&&pendGas>0?' · ':'')+(pendGas>0?'por pagar '+eur(pendGas):'')+'</p>':''}
+    <div class="card cuentas-sticky" style="text-align:center">
+      <p class="muted" style="text-transform:uppercase;font-size:12px;letter-spacing:.5px">Queda en el bote</p>
+      <p style="font-size:38px;font-weight:800;letter-spacing:-1px;color:${bote<0?"var(--red)":"var(--green)"}">${eur(bote)}</p>
+      ${totalGas>0?'<p class="muted" style="margin-top:1px;font-size:13px;font-weight:700">Pagado '+eur(gasPagado)+' / '+eur(totalGas)+'</p>':''}
       <div class="mcards" style="margin-top:8px">
         <div class="mcard mc-carb">Ingresos<b>${eur(totalIn)}</b></div>
         <div class="mcard mc-prot">Gastos<b>${eur(totalGas)}</b></div>
@@ -129,16 +126,17 @@
     if(!lista.length) return `<div class="card"><h2>${titulo}</h2><p class="muted" style="margin-top:8px">Nada este mes.</p></div>`;
     return `<div class="card"><h2>${titulo}</h2>
       ${lista.map(m=>`
-      <div class="entry" style="align-items:center;${m.pagado?'':'opacity:.6'}">
-        <button class="c-pag" data-id="${m.id}" title="${m.pagado?'pagado':'pendiente'}"
-          style="width:28px;height:28px;flex-shrink:0;margin-right:10px;border-radius:8px;cursor:pointer;font-weight:800;font-size:14px;border:2px solid ${m.pagado?(esGasto?'#c8e6cf':'#c8e6cf'):'var(--line)'};background:${m.pagado?'var(--green-soft)':'var(--card)'};color:var(--green)">${m.pagado?'✓':''}</button>
+      <div class="entry" style="align-items:center;${m.pagado?'opacity:.5':''}">
         <div style="flex:1">
-          <p style="font-weight:700;font-size:14px">${esc2(m.concepto)}${m.fijo?' <span class="muted" style="font-size:11px">· fijo</span>':''}${m.pagado?'':' <span style="color:var(--orange);font-size:11px;font-weight:700">· pendiente</span>'}</p>
-          ${m.categoria?'<p class="muted">'+esc2(m.categoria)+'</p>':''}
+          <p style="font-weight:700;font-size:14px;${m.pagado?'text-decoration:line-through;color:var(--muted)':''}">${esc2(m.concepto)}${m.fijo?' <span class="muted" style="font-size:11px">· fijo</span>':''}</p>
+          ${m.categoria?'<p class="muted" style="'+(m.pagado?'text-decoration:line-through':'')+'">'+esc2(m.categoria)+'</p>':''}
         </div>
-        <div style="text-align:right">
-          <p style="font-weight:800;color:${color}">${eur(m.importe)}</p>
-          <button class="c-del" data-id="${m.id}" style="background:none;border:0;color:var(--red);font-size:11px;font-weight:700;cursor:pointer">borrar</button>
+        <div style="text-align:right;display:flex;align-items:center;gap:12px">
+          <p style="font-weight:800;color:${color};${m.pagado?'text-decoration:line-through;opacity:.7':''}">${eur(m.importe)}</p>
+          <div style="text-align:right">
+            <button class="c-pag" data-id="${m.id}" style="display:block;background:none;border:0;color:${m.pagado?'var(--green)':'var(--muted)'};font-size:11px;font-weight:700;cursor:pointer;padding:2px 0;white-space:nowrap">${m.pagado?'✓ pagado':'pagado'}</button>
+            <button class="c-del" data-id="${m.id}" style="background:none;border:0;color:var(--red);font-size:11px;font-weight:700;cursor:pointer;padding:2px 0">borrar</button>
+          </div>
         </div>
       </div>`).join("")}
     </div>`;
@@ -162,7 +160,7 @@
     });
     if(tkPend){
       $("tk-ok").onclick = async ()=>{
-        await sb.from("pastanaga_finanzas").insert({mes:mesSel, tipo:"gasto", fijo:false, pagado:true,
+        await sb.from("pastanaga_finanzas").insert({mes:mesSel, tipo:"gasto", fijo:false, pagado:false,
           concepto:$("tk-con").value.trim()||"Compra", categoria:$("tk-cat").value,
           importe:parseFloat($("tk-imp").value)||0, quien:(perfil&&perfil.nombre)||null});
         tkPend=null; await cargar(); pintar();
@@ -184,9 +182,6 @@
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-weight:600">
         <input type="checkbox" id="f-fijo" style="width:auto"> Es fijo (se copia cada mes)
       </label>
-      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:600">
-        <input type="checkbox" id="f-pag" style="width:auto" checked> Ya está ${'{'}tipo==="ingreso"?"ingresado":"pagado"${'}'}
-      </label>
       <div id="f-err"></div>
       <div class="row" style="margin-top:16px">
         <button class="btn sm" id="f-ok">Guardar</button>
@@ -201,8 +196,7 @@
       const imp = parseFloat(ov.querySelector("#f-imp").value);
       if(!con || !imp || imp<=0){ ov.querySelector("#f-err").innerHTML='<div class="err">Pon concepto e importe válido</div>'; return; }
       await sb.from("pastanaga_finanzas").insert({
-        mes:mesSel, tipo, fijo:ov.querySelector("#f-fijo").checked,
-        pagado:ov.querySelector("#f-pag").checked,
+        mes:mesSel, tipo, fijo:ov.querySelector("#f-fijo").checked, pagado:false,
         concepto:con, categoria:tipo==="gasto"?ov.querySelector("#f-cat").value:null,
         importe:imp, quien:(perfil&&perfil.nombre)||null,
       });

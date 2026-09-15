@@ -188,3 +188,10 @@
   background: transparent;
   text-shadow: 0 1px 4px rgba(0,0,0,.7);
 }
+
+/* Cuentas: saldo pegado arriba al hacer scroll */
+.cuentas-sticky{
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 20;
+}
