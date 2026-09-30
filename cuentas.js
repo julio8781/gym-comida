@@ -70,7 +70,7 @@
     <div class="card cuentas-sticky" style="text-align:center">
       <p class="muted" style="text-transform:uppercase;font-size:12px;letter-spacing:.5px">Queda en el bote</p>
       <p style="font-size:38px;font-weight:800;letter-spacing:-1px;color:${bote<0?"var(--red)":"var(--green)"}">${eur(bote)}</p>
-      ${totalGas>0?'<p class="muted" style="margin-top:1px;font-size:13px;font-weight:700">Pagado '+eur(gasPagado)+' / '+eur(totalGas)+'</p>':''}
+      ${totalGas>0?'<p class="muted" style="margin-top:1px;font-size:13px;font-weight:700">Falta '+eur(totalGas-gasPagado)+' · total a pagar '+eur(totalGas)+'</p>':''}
       <div class="mcards" style="margin-top:8px">
         <div class="mcard mc-carb">Ingresos<b>${eur(totalIn)}</b></div>
         <div class="mcard mc-prot">Gastos<b>${eur(totalGas)}</b></div>
