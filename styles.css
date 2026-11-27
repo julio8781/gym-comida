@@ -221,3 +221,6 @@ button.hb-d{background:none;font-family:inherit;cursor:pointer;touch-action:mani
 .md-punto.sel{fill:var(--ink)}
 .md-zona{fill:transparent;cursor:pointer}
 .md-info{margin-top:2px;font-size:13px}
+.md-bloques{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-top:6px}
+.md-et{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.md-cambio{font-size:13px;margin-top:2px}
