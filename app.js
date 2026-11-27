@@ -273,7 +273,30 @@ const BIB = {
   elevaciones_piernas:{n:"Elevaciones de piernas",m:"Core",s:"3 × 10",p:0,tips:["Baja las piernas sin arquear el lumbar","Si es fácil, hazlas colgado de la barra"]},
   crunch_polea:{n:"Crunch en polea",m:"Core",s:"3 × 12",p:1,tips:["Enrolla el tronco, no tires con los brazos","Exhala al bajar"]},
   rueda:{n:"Rueda abdominal",m:"Core",s:"3 × 10",p:0,tips:["Avanza solo hasta donde controles","Abdomen apretado para proteger el lumbar"]},
-  cardio_suave:{n:"Piscina o cinta (ritmo suave)",m:"Cardio",s:"20-30 min",p:0,tips:["Ritmo al que puedas hablar","Lo importante es sumar minutos, no reventar"]},
+  cardio_suave:{n:"Cinta, bici o elíptica (ritmo suave)",m:"Cardio",s:"20-30 min",p:0,tips:["Ritmo al que puedas hablar","Lo importante es sumar minutos, no reventar"]},
+  // --- para la rutina de perder barriga (máquinas y mancuernas, fácil de empezar) ---
+  calentamiento:{n:"Calentamiento en cinta o elíptica",m:"Cardio",s:"5 min",p:0,tips:["Suave, solo para entrar en calor","Mueve también hombros y cadera un poco antes de empezar"]},
+  cinta_inclinada:{n:"Cinta inclinada (caminar en cuesta)",m:"Cardio",s:"15 min",p:0,tips:["Inclinación 8-12 % y 4,5-5,5 km/h, sin correr","No te agarres a la barra: si necesitas agarrarte, baja la inclinación"]},
+  intervalos:{n:"Bici o elíptica por intervalos",m:"Cardio",s:"20 min",p:0,tips:["1 min fuerte + 2 min suave, y repetir","Fuerte = te cuesta hablar; suave = recuperas"]},
+  press_maquina:{n:"Press de pecho en máquina",m:"Pecho",s:"3 × 10",p:1,tips:["Ajusta el asiento: agarres a la altura del pecho","Empuja sin bloquear los codos y vuelve lento"]},
+  sentadilla_goblet:{n:"Sentadilla goblet (mancuerna al pecho)",m:"Pierna",s:"3 × 10",p:1,tips:["Mancuerna pegada al pecho, codos hacia abajo","Baja con la espalda recta, como sentándote en una silla"]},
+  press_hombro_mancuernas:{n:"Press de hombro con mancuernas (sentado)",m:"Hombro",s:"3 × 10",p:1,tips:["Respaldo vertical y espalda apoyada","Sube sin chocar las mancuernas arriba y baja hasta las orejas"]},
+};
+
+// Rutina para perder barriga: ~45 min, cabe en la hora antes de las 21:00.
+// No es la de serie: cada uno la carga con su botón en «Editar mi rutina».
+const RUTINA_BARRIGA = {
+  A:["calentamiento","prensa","press_maquina","jalon_pecho","plancha","cinta_inclinada"],
+  B:["calentamiento","sentadilla_goblet","remo_maquina","press_hombro_mancuernas","crunch_polea","cinta_inclinada"],
+  C:["calentamiento","intervalos","zancadas","curl_biceps","triceps_polea","plancha_lateral"],
+  D:["flexiones","sentadilla_aire","zancadas","puente_gluteo","plancha","burpees"],
+  nombres:{A:"Full body 1", B:"Full body 2", C:"Cardio y brazos", D:"En casa"},
+  notas:{
+    A:"Lunes · pesas + 15 min de cuesta al final · descansa 90 seg entre series",
+    B:"Miércoles · pesas + 15 min de cuesta al final · sube peso cuando te salgan todas las reps",
+    C:"Viernes · intervalos + brazos · si vas justo de tiempo, recorta brazos, no el cardio",
+    D:"Rutina en casa · sin material · descansa 60-90 seg entre series",
+  },
 };
 const RUTINA_DEF = {
   A:["sentadilla","press_banca","remo_mancuerna","plancha","elevaciones_piernas"],
@@ -294,6 +317,8 @@ const rutinaDe = p => {
 };
 const NOMBRES_DEF = {A:"Full body 1", B:"Full body 2", C:"Cardio y brazos", D:"En casa"};
 const nombreRutina = (p,k) => (p && p.rutina && p.rutina.nombres && p.rutina.nombres[k]) || NOMBRES_DEF[k];
+// Nota del día: la de su rutina si la trae (la de barriga), si no la de serie
+const notaRutina = (p,k) => (p && p.rutina && p.rutina.notas && p.rutina.notas[k]) || NOTAS_DIA[k];
 function materializarRutina(){
   if(!perfil.rutina) perfil.rutina = JSON.parse(JSON.stringify(RUTINA_DEF));
   if(!perfil.rutina.nombres) perfil.rutina.nombres = {...NOMBRES_DEF};
@@ -1296,7 +1321,7 @@ function renderGym(){
       <input type="text" id="ed-nombre" value="${esc(nombreRutina(perfil,diaGym))}" maxlength="24">
       <button class="btn sm" style="flex:0 0 100px" id="ed-ren">Renombrar</button>
     </div>
-    <p class="muted" style="margin-bottom:12px">${NOTAS_DIA[diaGym]}</p>
+    <p class="muted" style="margin-bottom:12px">${notaRutina(perfil,diaGym)}</p>
     ${ids.map(id=>`
     <div class="ej"><div class="body" style="cursor:pointer" data-ficha="${id}">
       <p class="nm">${BIB[id].n} <span class="muted" style="font-weight:600">· ${BIB[id].m}</span></p>
@@ -1305,6 +1330,7 @@ function renderGym(){
     </div>`).join("")}
     <button class="btn sec sm" id="ed-add" style="margin-top:4px">➕ Añadir ejercicio</button>
     <div style="margin-top:12px"><button class="btn green" id="ed-fin">✓ Listo</button></div>
+    <button class="btn sec sm" id="ed-barriga" style="margin-top:8px">🔥 Usar rutina para perder barriga</button>
     <p class="muted" style="margin-top:8px">Los cambios valen para las próximas sesiones; lo ya registrado no se toca.</p>
 
     ${bibAbierta ? `
@@ -1334,6 +1360,11 @@ function renderGym(){
     });
     document.getElementById("ed-add").onclick = ()=>{bibAbierta=true; render();};
     document.getElementById("ed-fin").onclick = ()=>{modoEditar=false; bibAbierta=false; render();};
+    document.getElementById("ed-barriga").onclick = async ()=>{
+      if(!confirm("¿Cambiar tus 4 rutinas por la de perder barriga? Tus kg apuntados y lo ya registrado no se tocan.")) return;
+      perfil.rutina = JSON.parse(JSON.stringify(RUTINA_BARRIGA));
+      await guardarRutina(); render();
+    };
     document.querySelectorAll(".bib-add").forEach(b=>b.onclick=async ()=>{
       materializarRutina();
       perfil.rutina[diaGym].push(b.dataset.id);
@@ -1371,13 +1402,20 @@ function renderGym(){
 
   ${window.habitoHTML ? habitoHTML() : ""}
 
+  ${mio && !(rut.A||[]).includes("calentamiento") ? `
+  <div class="card" style="border:2px dashed var(--carrot)">
+    <p style="font-weight:800">🔥 Rutina nueva para perder barriga</p>
+    <p class="muted" style="margin:4px 0 10px">~45 min con máquinas: calentamiento, pesas y 15 min de cuesta al final.</p>
+    <button class="btn sm" id="g-barriga">Usarla</button>
+  </div>` : ""}
+
   ${!reg && mio ? `
   <div class="card">
     <h2>¿Qué rutina toca?</h2>
     <div class="seg" style="margin:10px 0">
       ${["A","B","C","D"].map(d=>`<button data-d="${d}" class="${diaGym===d?"on":""}" style="font-size:12px">${esc(nombreRutina(perfil,d))}</button>`).join("")}
     </div>
-    <p class="muted" style="margin-bottom:10px">${NOTAS_DIA[diaGym]}</p>
+    <p class="muted" style="margin-bottom:10px">${notaRutina(perfil,diaGym)}</p>
     ${(rut[diaGym]||[]).filter(id=>BIB[id]).map(id=>'<div class="ej" style="cursor:pointer" data-ficha="'+id+'"><div class="body"><p class="nm">'+BIB[id].n+' 📖</p><p class="muted">'+BIB[id].s+' · '+BIB[id].m+'</p></div></div>').join("")}
     <div style="margin-top:12px"><button class="btn green" id="g-empezar">🏋️ Empezar: ${esc(nombreRutina(perfil,diaGym))}</button></div>
   </div>` : ""}
@@ -1448,6 +1486,12 @@ function renderGym(){
     perfil.pesos = perfil.pesos||{}; perfil.pesos[x.id] = inp.value;
     await guardarSesion(); await guardarPesos();
   });
+  const gb = document.getElementById("g-barriga");
+  if(gb) gb.onclick = async ()=>{
+    if(!confirm("¿Cambiar tus 4 rutinas por la de perder barriga? Tus kg apuntados y lo ya registrado no se tocan.")) return;
+    perfil.rutina = JSON.parse(JSON.stringify(RUTINA_BARRIGA));
+    await guardarRutina(); render();
+  };
   const ged = document.getElementById("g-editar");
   if(ged) ged.onclick = ()=>{ modoEditar=true; render(); };
 }
