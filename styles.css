@@ -245,3 +245,5 @@ button.hb-d{background:none;font-family:inherit;cursor:pointer;touch-action:mani
 .cm-pasos{display:grid;gap:10px;margin-top:8px}
 .cm-paso{display:flex;gap:10px;align-items:flex-start;font-size:14px}
 .cm-t{flex:0 0 42px;font-weight:800;color:var(--carrot)}
+.cm-falta{background:var(--carrot-soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-top:10px}
+.cm-tienes{background:var(--green-soft);color:var(--green);border-radius:10px;padding:8px 10px;font-size:13px;font-weight:700;margin-top:10px}

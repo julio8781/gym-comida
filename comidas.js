@@ -110,6 +110,8 @@
   // IA
   let iaPide = "", iaMomento = "cena", iaAparato = "cualquiera", iaCargando = false, iaError = "";
   let iaReceta = null, iaPrevias = [];
+  let iaSoloCasa = true;      // true = solo con lo que hay en la despensa (+ aceite, sal, especias)
+  let despensaVacia = false;
   let batchIA = null, batchCargando = false, batchPersonas = 1, batchPide = "";
   const GUARDADAS = "pastanaga_recetas";
   const guardadas = () => { try{ return JSON.parse(localStorage.getItem(GUARDADAS)) || []; }catch(e){ return []; } };
@@ -143,6 +145,7 @@
     iaCargando = true; iaError = ""; pintar();
     try{
       const [q, casa] = await Promise.all([loQueQueda(), enCasa()]);
+      despensaVacia = !casa.length;
       const momento = {desayuno:"un desayuno", comida:"una comida", cena:"una cena", merienda:"una merienda"}[iaMomento];
       const aparato = {freidora:"Hazla en la FREIDORA DE AIRE.", mambo:"Hazla en el robot MAMBO.", frio:"Que sea SIN COCINAR.", cualquiera:"Usa el aparato que mejor le vaya."}[iaAparato];
       const kcalTxt = q && q.kcal ? ` Le quedan hoy ${q.kcal} kcal y ${q.prot} g de proteína: la receta no debe pasar de ${Math.min(q.kcal, 800)} kcal y debe tener mucha proteína.` : " Que tenga unas 400-550 kcal y mucha proteína.";
@@ -150,16 +153,20 @@
         + ` Tiene ${APARATOS_TXT}. ${aparato}${kcalTxt}`
         + (iaPide.length > 120 ? ` Te ha pegado esta receta (seguramente del recetario de la Mambo): «${iaPide}». ADÁPTALA para perder grasa sin que deje de ser fácil ni de saber bien; mantén la Mambo si la usa.`
           : iaPide ? ` Lo que pide o tiene: «${iaPide}». Si es el nombre de una receta conocida o de la Mambo, haz una versión ligera.` : "")
-        + (casa.length ? ` En casa hay: ${casa.join(", ")}. Úsalo si encaja.` : "")
+        + (casa.length
+            ? (iaSoloCasa
+                ? ` EN CASA HAY EXACTAMENTE ESTO: ${casa.join(", ")}. Haz la receta SOLO con eso (más aceite, sal, especias y agua, que siempre hay). Si de verdad falta algo imprescindible, como mucho 2 cosas, y ponlas en "faltan".`
+                : ` En casa hay: ${casa.join(", ")}. Aprovéchalo, y lo que haya que comprar ponlo en "faltan".`)
+            : ` La despensa está sin apuntar: pon en "faltan" todo lo que haga falta comprar.`)
         + (iaPrevias.length ? ` NO repitas estas: ${iaPrevias.join(", ")}.` : "")
         + ` Da temperaturas, tiempos y, en la Mambo, temperatura, velocidad y si va con giro inverso.`
         + ` En "ing" pon los ingredientes a comprar usando EXACTAMENTE estos nombres cuando coincidan: ${NOMBRES_COMPRA.join(", ")}; si no está en la lista, un nombre corto normal.`
-        + ` Responde SOLO con JSON válido, sin markdown: {"nombre":"","aparato":"freidora|mambo|sarten|frio","min":0,"kcal":0,"prot":0,"cant":["cantidad + ingrediente, 1 ración"],"pasos":["paso corto"],"truco":"una frase","ing":["nombre para la compra"]}`;
+        + ` Responde SOLO con JSON válido, sin markdown: {"nombre":"","aparato":"freidora|mambo|sarten|frio","min":0,"kcal":0,"prot":0,"cant":["cantidad + ingrediente, 1 ración"],"pasos":["paso corto"],"truco":"una frase","ing":["nombre para la compra"],"faltan":["solo lo que NO hay en casa, mismo formato que ing"]}`;
       const r = await gemini([{text: prompt}]);
       if(!r || !r.nombre || !Array.isArray(r.pasos)) throw new Error("La IA no ha devuelto una receta, prueba otra vez");
       r.id = "ia_" + Date.now();
       if(!APARATOS[r.aparato]) r.aparato = "sarten";
-      r.cant = r.cant || []; r.ing = r.ing || [];
+      r.cant = r.cant || []; r.ing = r.ing || []; r.faltan = Array.isArray(r.faltan) ? r.faltan : r.ing;
       iaReceta = r; iaPrevias.push(r.nombre);
       abierta = r.id;
     }catch(e){ iaError = e.message || "No he podido pedir la receta"; }
@@ -174,13 +181,13 @@
       const prompt = `Eres un experto en batch cooking. Prepara un plan para dejar hechas 5 comidas (lunes a viernes) para ${batchPersonas === 2 ? "2 personas (10 tuppers)" : "1 persona (5 tuppers)"} en ~1 h 30 un domingo, para perder grasa: 450-600 kcal y 35-50 g de proteína por tupper. Todo de Mercadona.`
         + ` Tiene ${APARATOS_TXT}: úsalos A LA VEZ para ir más rápido.`
         + ` Que sea DISTINTO a: arroz con pollo y verduras + lentejas.` + (batchPide ? ` Lo que pide: «${batchPide}».` : "")
-        + (casa.length ? ` En casa hay: ${casa.join(", ")}.` : "")
+        + (casa.length ? ` En casa hay: ${casa.join(", ")}. Aprovéchalo todo lo posible; lo que haya que comprar ponlo en "faltan".` : ` La despensa está sin apuntar: pon en "faltan" todo lo que haga falta comprar.`)
         + ` Lo que aguante peor, al congelador (la nevera, 3-4 días).`
         + ` En "ing" usa EXACTAMENTE estos nombres cuando coincidan: ${NOMBRES_COMPRA.join(", ")}.`
-        + ` Responde SOLO JSON válido sin markdown: {"titulo":"corto","cant":["cantidad + ingrediente"],"ing":["nombre para la compra"],"pasos":[["0:00","🤖 Mambo|🌀 Freidora|🍳 Sartén|🥡 Montar|❄️ Guardar","qué hacer"]],"trucos":["frase"]}`;
+        + ` Responde SOLO JSON válido sin markdown: {"titulo":"corto","cant":["cantidad + ingrediente"],"ing":["nombre para la compra"],"faltan":["solo lo que NO hay en casa"],"pasos":[["0:00","🤖 Mambo|🌀 Freidora|🍳 Sartén|🥡 Montar|❄️ Guardar","qué hacer"]],"trucos":["frase"]}`;
       const r = await gemini([{text: prompt}]);
       if(!r || !Array.isArray(r.pasos) || !r.pasos.length) throw new Error("La IA no ha devuelto un plan, prueba otra vez");
-      r.cant = r.cant || []; r.ing = r.ing || []; r.trucos = r.trucos || [];
+      r.cant = r.cant || []; r.ing = r.ing || []; r.trucos = r.trucos || []; r.faltan = Array.isArray(r.faltan) ? r.faltan : r.ing;
       batchIA = r;
     }catch(e){ iaError = e.message || "No he podido pedir el plan"; }
     batchCargando = false; pintar();
@@ -233,7 +240,10 @@
         <p class="cm-sub">Cómo se hace</p>
         <ol>${r.pasos.map(p => `<li>${esc(p)}</li>`).join("")}</ol>
         ${r.truco ? `<p class="cm-truco">💡 ${esc(r.truco)}</p>` : ""}
-        <button class="btn sec sm cm-compra" data-ing="${r.id}" style="margin-top:10px">🛒 Añadir ingredientes a la compra</button>
+        ${r.faltan ? (r.faltan.length
+          ? `<p class="cm-falta">🛒 Te falta: <b>${r.faltan.map(esc).join(", ")}</b></p>`
+          : `<p class="cm-tienes">✅ Lo tienes todo en casa</p>`) : ""}
+        ${!r.faltan || r.faltan.length ? `<button class="btn sec sm cm-compra" data-ing="${r.id}" style="margin-top:10px">🛒 ${r.faltan ? "Añadir lo que falta a la compra" : "Añadir ingredientes a la compra"}</button>` : ""}
         ${r.id.startsWith("ia_") ? (guardadas().some(x => x.id === r.id)
           ? `<button class="hb-link" data-quitar="${r.id}" style="display:block;margin:10px auto 0">Quitar de «Mis recetas»</button>`
           : `<button class="btn sm" data-guardar="${r.id}" style="margin-top:8px">⭐ Guardar en «Mis recetas»</button>`) : ""}
@@ -262,6 +272,8 @@
       <p class="muted" style="margin:4px 0 8px;font-size:13px">La IA mira las calorías que te quedan hoy y lo que hay en la despensa. ¿Has visto una receta de la Mambo que te gusta? Pega el nombre o la receta y te la adapto para perder grasa.</p>
       <div class="cm-filtros">${["desayuno","comida","merienda","cena"].map(m => chip("data-im", m, iaMomento, m[0].toUpperCase()+m.slice(1))).join("")}</div>
       <div class="cm-filtros">${[["cualquiera","Cualquier cosa"],["freidora","🌀 Freidora"],["mambo","🤖 Mambo"],["frio","🥗 Sin cocinar"]].map(([k,t]) => chip("data-ia", k, iaAparato, t)).join("")}</div>
+      <div class="cm-filtros">${chip("data-ic", "casa", iaSoloCasa ? "casa" : "comprar", "📦 Con lo que tengo")}${chip("data-ic", "comprar", iaSoloCasa ? "casa" : "comprar", "🛒 Puedo comprar")}</div>
+      ${despensaVacia ? '<p class="cm-falta" style="margin:0 0 8px">Tu despensa está vacía, así que no sé qué tienes. Apúntalo en <b>Compra → 🧊 Despensa</b> (o haz foto al ticket al volver del Mercadona).</p>' : ""}
       <input type="text" id="cm-pide" value="${esc(iaPide)}" placeholder="Ej.: algo con pollo (opcional)">
       <button class="btn sm" id="cm-pedir" style="margin-top:8px" ${iaCargando?"disabled":""}>${iaCargando ? '<span class="spin"></span>Pensando…' : (iaReceta ? "🔄 Otra receta" : "🧠 Hazme una receta")}</button>
     </div>
@@ -284,7 +296,9 @@
       ${batchIA ? "" : '<p class="muted" style="margin-top:4px">Cantidades para ti solo; si también es para Roney, el doble.</p>'}
       <p class="cm-sub">Qué necesitas</p>
       <ul class="cm-lista">${plan.cant.map(c => `<li>${esc(c)}</li>`).join("")}</ul>
-      <button class="btn sec sm" id="cm-batch-compra" style="margin-top:6px">🛒 Añadir todo a la compra</button>
+      ${plan.faltan && !plan.faltan.length ? '<p class="cm-tienes">✅ Lo tienes todo en casa</p>' : `
+      ${plan.faltan ? `<p class="cm-falta">🛒 Te falta: <b>${plan.faltan.map(esc).join(", ")}</b></p>` : ""}
+      <button class="btn sec sm" id="cm-batch-compra" style="margin-top:6px">🛒 ${plan.faltan ? "Añadir lo que falta a la compra" : "Añadir todo a la compra"}</button>`}
     </div>
     <div class="card">
       <h2>Paso a paso</h2>
@@ -301,14 +315,15 @@
     document.querySelectorAll("[data-cs]").forEach(b => b.onclick = () => { sub = b.dataset.cs; pintar(); });
     document.querySelectorAll("[data-cf]").forEach(b => b.onclick = () => { filtro = b.dataset.cf; abierta = null; pintar(); });
     document.querySelectorAll("[data-rec]").forEach(b => b.onclick = () => { abierta = abierta === b.dataset.rec ? null : b.dataset.rec; pintar(); });
-    document.querySelectorAll("[data-ing]").forEach(b => b.onclick = () => aLaCompra(buscarReceta(b.dataset.ing).ing));
+    document.querySelectorAll("[data-ing]").forEach(b => b.onclick = () => { const r = buscarReceta(b.dataset.ing); aLaCompra(r.faltan || r.ing); });
     const bc = document.getElementById("cm-batch-compra");
-    if(bc) bc.onclick = () => aLaCompra(plan.ing);
+    if(bc) bc.onclick = () => aLaCompra(plan.faltan || plan.ing);
     // IA
     const pide = document.getElementById("cm-pide");
     if(pide) pide.oninput = () => { iaPide = pide.value; };
     document.querySelectorAll("[data-im]").forEach(b => b.onclick = () => { iaMomento = b.dataset.im; pintar(); });
     document.querySelectorAll("[data-ia]").forEach(b => b.onclick = () => { iaAparato = b.dataset.ia; pintar(); });
+    document.querySelectorAll("[data-ic]").forEach(b => b.onclick = () => { iaSoloCasa = b.dataset.ic === "casa"; pintar(); });
     const pd = document.getElementById("cm-pedir"); if(pd) pd.onclick = pedirReceta;
     document.querySelectorAll("[data-guardar]").forEach(b => b.onclick = () => guardar(buscarReceta(b.dataset.guardar)));
     document.querySelectorAll("[data-quitar]").forEach(b => b.onclick = () => quitar(b.dataset.quitar));
