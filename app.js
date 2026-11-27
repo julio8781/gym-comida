@@ -1405,8 +1405,8 @@ function renderGym(){
 
   <div class="fnav">
     <button id="g-prev">‹</button>
-    <span class="f">${esHoyG ? "Hoy · " : ""}${fechaLarga(fechaGym)}</span>
-    <button id="g-next" ${esHoyG?"disabled":""}>›</button>
+    <span class="f">${esHoyG ? "Hoy · " : (fechaGym > hoy() ? "📅 " : "")}${fechaLarga(fechaGym)}</span>
+    <button id="g-next" ${fechaGym>=hoy()?"disabled":""}>›</button>
   </div>
   ${errorMsg?'<div class="err" style="margin-bottom:10px">⚠ '+esc(errorMsg)+'</div>':""}
 
@@ -1427,7 +1427,9 @@ function renderGym(){
     </div>
     <p class="muted" style="margin-bottom:10px">${notaRutina(perfil,diaGym)}</p>
     ${(rut[diaGym]||[]).filter(id=>BIB[id]).map(id=>'<div class="ej" style="cursor:pointer" data-ficha="'+id+'"><div class="body"><p class="nm">'+BIB[id].n+' 📖</p><p class="muted">'+BIB[id].s+' · '+BIB[id].m+'</p></div></div>').join("")}
-    <div style="margin-top:12px"><button class="btn green" id="g-empezar">🏋️ Empezar: ${esc(nombreRutina(perfil,diaGym))}</button></div>
+    ${fechaGym > hoy()
+      ? '<p class="muted" style="margin-top:12px">📅 Esto es lo que te toca ese día. Podrás empezar cuando llegue.</p>'
+      : '<div style="margin-top:12px"><button class="btn green" id="g-empezar">🏋️ Empezar: '+esc(nombreRutina(perfil,diaGym))+'</button></div>'}
   </div>` : ""}
 
   ${!reg && !mio ? '<div class="card"><p class="muted">'+esc(parejaPerfil?parejaPerfil.nombre:"Tu pareja")+' no entrenó este día 😴</p></div>' : ""}

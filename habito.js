@@ -136,8 +136,10 @@
 
     const mio = user === uid;
     const nombre = mio ? "" : esc(parejaPerfil ? parejaPerfil.nombre : "");
-    const w = semana(lunesDe(hoy()));
+    const L = lunesDe(fechaGym || hoy());          // la semana del día que se está viendo
+    const w = semana(L);
     const H = hoy();
+    const esta = L === lunesDe(H);
     const r = racha();
     const elegida = w.gym !== undefined;
     const tocable = mio && elegida;
@@ -156,12 +158,12 @@
 
     const puntos = w.dias.map((d,i)=>{
       const ico = d.s ? (d.s.dia === "D" ? "🏠" : "💪") : (d.toca && elegida ? (rutinaDelDia(w,i) || "") : "");
-      const cls = ["hb-d", d.s ? "si" : "", d.toca && elegida && !d.s ? "toca" : "", d.f === H ? "hoy" : "", tocable ? "tocable" : ""].join(" ");
-      const tag = tocable ? "button" : "div";
-      return `<${tag} class="${cls}" ${tocable ? 'data-hbdia="'+i+'"' : ""}><span>${DIAS[i]}</span><b>${ico}</b></${tag}>`;
+      const cls = ["hb-d", d.s ? "si" : "", d.toca && elegida && !d.s ? "toca" : "", d.f === H ? "hoy" : "", d.f === fechaGym ? "ver" : ""].join(" ");
+      return `<button class="${cls}" data-hbdia="${i}" data-hbf="${d.f}"><span>${DIAS[i]}</span><b>${ico}</b></button>`;
     }).join("");
 
-    const ayuda = tocable ? '<p class="muted" style="margin-top:6px;font-size:12px">Toca un día para quitarlo o ponerlo</p>' : "";
+    const ayuda = tocable ? '<p class="muted" style="margin-top:6px;font-size:12px">Toca un día para verlo · <b>doble toque</b> para ponerlo o quitarlo</p>'
+                         : '<p class="muted" style="margin-top:6px;font-size:12px">Toca un día para verlo</p>';
 
     const estado = w.cumplida
       ? '<div class="ok" style="margin-top:8px">✅ Semana cumplida'+(mio?", sigue así":"")+'</div>'
@@ -173,7 +175,7 @@
     return `
     <div class="card hb">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <h2>${mio ? "Mi semana" : "Semana de "+nombre}</h2>
+        <h2>${esta ? (mio ? "Mi semana" : "Semana de "+nombre) : "Semana del "+new Date(L+"T12:00:00").toLocaleDateString("es-ES",{day:"numeric",month:"short"})}</h2>
         <span class="hb-racha" title="Semanas cumplidas seguidas">🔥 ${r} ${r===1?"semana":"semanas"}</span>
       </div>
       ${error ? '<div class="err" style="margin-top:8px">⚠ '+esc(error)+'</div>' : ""}
@@ -188,7 +190,7 @@
 
   // Guarda cómo es esta semana (tipo y días)
   async function guardar(gym, dias){
-    const lunes = lunesDe(hoy());
+    const lunes = lunesDe(fechaGym || hoy());
     const fila = {user_id: uid, lunes, semana_gym: gym};
     if(dias && !sinColumnaDias) fila.dias = dias;
     let {error:e} = await sb.from("pastanaga_semanas").upsert(fila);
@@ -205,8 +207,16 @@
     render();
   }
 
+  // Ir a un día (un toque): se ve su sesión o, si no hay, la rutina que toca
+  async function irA(f){
+    fechaGym = f;
+    await cargarGymDia();
+    if(!sesionG && (gymUser||uid) === uid){ const k = window.habitoRutinaDe(f); if(k) diaGym = k; }
+    render();
+  }
+
   window.habitoWire = function(){
-    const lunes = lunesDe(hoy());
+    const lunes = lunesDe(fechaGym || hoy());
     const si = document.getElementById("hb-si"), no = document.getElementById("hb-no");
     if(si) si.onclick = () => guardar(true, diasDe(lunes, "gym"));
     if(no) no.onclick = () => guardar(false, diasDe(lunes, "casa"));
@@ -217,24 +227,41 @@
       if(datos.semanas[lunes]) datos.semanas[lunes].dias = null;
       guardar(gym, diasDe(lunes, gym ? "gym" : "casa"));
     };
+    // Un toque = ir a ese día; doble toque = ponerlo o quitarlo del plan.
+    // El toque espera un poquito por si llega el segundo.
     document.querySelectorAll("[data-hbdia]").forEach(b => b.onclick = () => {
-      const i = parseInt(b.dataset.hbdia);
+      const i = parseInt(b.dataset.hbdia), f = b.dataset.hbf;
+      if(ultimoToque.i === i && Date.now() - ultimoToque.t < 350){
+        clearTimeout(ultimoToque.espera); ultimoToque = {i:-1, t:0};
+        if(document.getElementById("hb-cambiar")) cambiarDia(i);   // solo si es tuya y ya elegiste semana
+        return;
+      }
+      clearTimeout(ultimoToque.espera);
+      ultimoToque = {i, t: Date.now(), espera: setTimeout(() => irA(f), 350)};
+    });
+  };
+
+  let ultimoToque = {i:-1, t:0};
+  function cambiarDia(i){
+    const lunes = lunesDe(fechaGym || hoy());
+    {
       const w = semana(lunes);
       const dias = w.elegidos.includes(i) ? w.elegidos.filter(x => x !== i) : [...w.elegidos, i].sort((a,b)=>a-b);
       if(!dias.length){ error = "Deja al menos un día"; render(); return; }
       error = "";
       guardar(w.gym, dias);
-    });
-  };
+    }
+  }
 
-  // Qué rutina proponer hoy (o null si hoy no toca)
-  window.habitoRutinaHoy = function(){
+  // Qué rutina toca un día (o null si ese día no toca)
+  window.habitoRutinaDe = function(f){
     if(!datos || datos.user !== uid) return null;
-    const w = semana(lunesDe(hoy()));
+    const w = semana(lunesDe(f));
     if(w.gym === undefined) return null;
     if(w.tipo === "casa") return "D";            // en semana de casa, si entrenas, es la de casa
-    return rutinaDelDia(w, diaSemana(hoy()));
+    return rutinaDelDia(w, diaSemana(f));
   };
+  window.habitoRutinaHoy = () => window.habitoRutinaDe(hoy());
 
   // La propone una sola vez por día
   window.habitoSugerir = function(){
