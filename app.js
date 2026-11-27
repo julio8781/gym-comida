@@ -1438,6 +1438,11 @@ function renderGym(){
       <h2>${esc(nombreRutina(mio?perfil:parejaPerfil, sesionG.dia))} · ${done}/${reg.ejercicios.length}</h2>
       ${mio?'<button id="g-rehacer" style="background:none;border:0;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;text-decoration:underline">🔄 rehacer con mi rutina actual</button>':""}
     </div>
+    ${mio ? `
+    <div class="seg" style="margin-top:10px">
+      ${["A","B","C","D"].map(d=>`<button data-cambiar="${d}" class="${sesionG.dia===d?"on":""}" style="font-size:12px">${esc(nombreRutina(perfil,d))}</button>`).join("")}
+    </div>
+    ${done===0 ? '<button id="g-quitar" class="hb-link">✕ no voy a entrenar este día (quitar la sesión)</button>' : ""}` : ""}
   </div>
   ${reg.ejercicios.map((x,i)=>{
     const e = BIB[x.id] || {n:x.id, s:"", p:1};
@@ -1475,6 +1480,28 @@ function renderGym(){
   if(ge) ge.onclick = async ()=>{
     sesionG = {dia:diaGym, registro: crearRegistro(diaGym)};
     await guardarSesion(); puntosCache=null; render();
+  };
+  // Cambiar de rutina con la sesión ya empezada (antes había que rehacerla a ciegas)
+  document.querySelectorAll("[data-cambiar]").forEach(b=>b.onclick = async ()=>{
+    const d = b.dataset.cambiar;
+    if(d===sesionG.dia) return;
+    const hechos = sesionG.registro.ejercicios.filter(x=>x.hecho).length;
+    if(hechos && !confirm("¿Cambiar a "+nombreRutina(perfil,d)+"? Se pierden los "+hechos+" ejercicios marcados de este día.")) return;
+    diaGym = d;
+    sesionG = {dia:d, registro: crearRegistro(d)};
+    await guardarSesion(); puntosCache=null;
+    if(window.habitoRefrescar) habitoRefrescar();
+    render();
+  });
+  // Deshacer «Empezar» si aún no se ha marcado nada: vuelve a «¿Qué rutina toca?»
+  const gq = document.getElementById("g-quitar");
+  if(gq) gq.onclick = async ()=>{
+    // .select() devuelve lo borrado: si Supabase no deja borrar, no da error, solo 0 filas
+    const {data, error} = await sb.from("pastanaga_gym").delete().eq("user_id", uid).eq("fecha", fechaGym).select();
+    if(error || !data || !data.length){ errorMsg = "No se pudo quitar la sesión"+(error?": "+error.message:" (Supabase no deja borrar)"); render(); return; }
+    sesionG = null; puntosCache=null;
+    if(window.habitoRefrescar) habitoRefrescar();
+    render();
   };
   const gr = document.getElementById("g-rehacer");
   if(gr) gr.onclick = async ()=>{
