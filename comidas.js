@@ -2,10 +2,14 @@
    PASTANAGA · módulo Comidas 🍳
    Recetas fáciles (freidora de aire y robot Mambo de Cecotec) y un
    plan de batch cooking para dejar los tuppers de la semana hechos.
-   Las recetas están aquí escritas (no se piden a ninguna IA): siempre
-   iguales y sin esperar. Los ingredientes usan los mismos nombres que
-   la lista saludable de Compra, para poder pasarlos a la lista.
-   Autónomo, como cuentas.js: se apoya en sb, esc() y el div #app.
+   Las recetas de serie están aquí escritas: siempre iguales y sin esperar.
+   Además, la IA (Gemini, con la clave de cada uno, como el resto de la app)
+   hace recetas a medida con las calorías que quedan hoy y otros planes de
+   tuppers. Las recetas que se guardan van a este móvil (localStorage).
+   Los ingredientes usan los mismos nombres que la lista saludable de
+   Compra, para poder pasarlos a la lista.
+   Autónomo, como cuentas.js: se apoya en sb, uid, perfil, gemini(),
+   protObjetivo(), hoy(), esc() y el div #app.
 
    Expone: window.renderComidas()
 ============================================================ */
@@ -103,6 +107,97 @@
   };
 
   let sub = "faciles", filtro = "todas", abierta = null, aviso = "";
+  // IA
+  let iaPide = "", iaMomento = "cena", iaAparato = "cualquiera", iaCargando = false, iaError = "";
+  let iaReceta = null, iaPrevias = [];
+  let batchIA = null, batchCargando = false, batchPersonas = 1, batchPide = "";
+  const GUARDADAS = "pastanaga_recetas";
+  const guardadas = () => { try{ return JSON.parse(localStorage.getItem(GUARDADAS)) || []; }catch(e){ return []; } };
+
+  const NOMBRES_COMPRA = [...new Set([...RECETAS.flatMap(r => r.ing), ...BATCH.ing,
+    "Plátanos","Manzanas","Mandarinas","Tomates","Bolsa de ensalada","Pepino","Pimientos","Cebolla","Brócoli","Calabacín",
+    "Verduras congeladas para saltear","Patatas","Limones","Pechuga de pollo","Carne picada de pollo o pavo","Lomo de cerdo",
+    "Salmón","Merluza congelada","Atún al natural (latas)","Huevos","Claras de huevo (brick)","Pechuga de pavo en lonchas",
+    "Yogur griego natural o skyr","Queso fresco batido 0 %","Queso fresco de Burgos","Leche semidesnatada","Arroz",
+    "Pasta integral","Copos de avena","Pan de molde integral","Tortitas de arroz o maíz","Garbanzos cocidos","Lentejas cocidas",
+    "Tomate triturado","Aceite de oliva virgen extra","Frutos secos naturales","Crema de cacahuete 100 %"])];
+
+  const APARATOS_TXT = "freidora de aire y robot de cocina Cecotec Mambo 11090 (jarra con temperatura hasta 120 °C, velocidades 1-10, giro inverso y cestillo; NO hornea ni fríe), además de sartén y microondas";
+
+  // Calorías y proteína que quedan hoy (del Diario)
+  async function loQueQueda(){
+    try{
+      const {data} = await sb.from("pastanaga_comidas").select("kcal,proteina,borrada").eq("user_id", uid).eq("fecha", hoy());
+      const com = (data||[]).filter(c => !c.borrada);
+      const kcal = com.reduce((a,c) => a + (c.kcal||0), 0), prot = com.reduce((a,c) => a + (c.proteina||0), 0);
+      return {kcal: Math.max(0, Math.round((perfil.objetivo||0) - kcal)), prot: Math.max(0, Math.round(protObjetivo(perfil) - prot))};
+    }catch(e){ return null; }
+  }
+
+  async function enCasa(){
+    try{ const {data} = await sb.from("pastanaga_despensa").select("nombre"); return (data||[]).map(x => x.nombre); }catch(e){ return []; }
+  }
+
+  async function pedirReceta(){
+    if(!perfil || !perfil.apikey){ iaError = "Falta tu clave de Gemini en Ajustes ⚙️"; pintar(); return; }
+    iaCargando = true; iaError = ""; pintar();
+    try{
+      const [q, casa] = await Promise.all([loQueQueda(), enCasa()]);
+      const momento = {desayuno:"un desayuno", comida:"una comida", cena:"una cena", merienda:"una merienda"}[iaMomento];
+      const aparato = {freidora:"Hazla en la FREIDORA DE AIRE.", mambo:"Hazla en el robot MAMBO.", frio:"Que sea SIN COCINAR.", cualquiera:"Usa el aparato que mejor le vaya."}[iaAparato];
+      const kcalTxt = q && q.kcal ? ` Le quedan hoy ${q.kcal} kcal y ${q.prot} g de proteína: la receta no debe pasar de ${Math.min(q.kcal, 800)} kcal y debe tener mucha proteína.` : " Que tenga unas 400-550 kcal y mucha proteína.";
+      const prompt = `Eres un cocinero y nutricionista español. Quiere perder grasa sin pasar hambre. Propón ${momento} MUY FÁCIL (máximo 25 min de trabajo) con ingredientes de Mercadona.`
+        + ` Tiene ${APARATOS_TXT}. ${aparato}${kcalTxt}`
+        + (iaPide.length > 120 ? ` Te ha pegado esta receta (seguramente del recetario de la Mambo): «${iaPide}». ADÁPTALA para perder grasa sin que deje de ser fácil ni de saber bien; mantén la Mambo si la usa.`
+          : iaPide ? ` Lo que pide o tiene: «${iaPide}». Si es el nombre de una receta conocida o de la Mambo, haz una versión ligera.` : "")
+        + (casa.length ? ` En casa hay: ${casa.join(", ")}. Úsalo si encaja.` : "")
+        + (iaPrevias.length ? ` NO repitas estas: ${iaPrevias.join(", ")}.` : "")
+        + ` Da temperaturas, tiempos y, en la Mambo, temperatura, velocidad y si va con giro inverso.`
+        + ` En "ing" pon los ingredientes a comprar usando EXACTAMENTE estos nombres cuando coincidan: ${NOMBRES_COMPRA.join(", ")}; si no está en la lista, un nombre corto normal.`
+        + ` Responde SOLO con JSON válido, sin markdown: {"nombre":"","aparato":"freidora|mambo|sarten|frio","min":0,"kcal":0,"prot":0,"cant":["cantidad + ingrediente, 1 ración"],"pasos":["paso corto"],"truco":"una frase","ing":["nombre para la compra"]}`;
+      const r = await gemini([{text: prompt}]);
+      if(!r || !r.nombre || !Array.isArray(r.pasos)) throw new Error("La IA no ha devuelto una receta, prueba otra vez");
+      r.id = "ia_" + Date.now();
+      if(!APARATOS[r.aparato]) r.aparato = "sarten";
+      r.cant = r.cant || []; r.ing = r.ing || [];
+      iaReceta = r; iaPrevias.push(r.nombre);
+      abierta = r.id;
+    }catch(e){ iaError = e.message || "No he podido pedir la receta"; }
+    iaCargando = false; pintar();
+  }
+
+  async function pedirBatch(){
+    if(!perfil || !perfil.apikey){ iaError = "Falta tu clave de Gemini en Ajustes ⚙️"; pintar(); return; }
+    batchCargando = true; iaError = ""; pintar();
+    try{
+      const casa = await enCasa();
+      const prompt = `Eres un experto en batch cooking. Prepara un plan para dejar hechas 5 comidas (lunes a viernes) para ${batchPersonas === 2 ? "2 personas (10 tuppers)" : "1 persona (5 tuppers)"} en ~1 h 30 un domingo, para perder grasa: 450-600 kcal y 35-50 g de proteína por tupper. Todo de Mercadona.`
+        + ` Tiene ${APARATOS_TXT}: úsalos A LA VEZ para ir más rápido.`
+        + ` Que sea DISTINTO a: arroz con pollo y verduras + lentejas.` + (batchPide ? ` Lo que pide: «${batchPide}».` : "")
+        + (casa.length ? ` En casa hay: ${casa.join(", ")}.` : "")
+        + ` Lo que aguante peor, al congelador (la nevera, 3-4 días).`
+        + ` En "ing" usa EXACTAMENTE estos nombres cuando coincidan: ${NOMBRES_COMPRA.join(", ")}.`
+        + ` Responde SOLO JSON válido sin markdown: {"titulo":"corto","cant":["cantidad + ingrediente"],"ing":["nombre para la compra"],"pasos":[["0:00","🤖 Mambo|🌀 Freidora|🍳 Sartén|🥡 Montar|❄️ Guardar","qué hacer"]],"trucos":["frase"]}`;
+      const r = await gemini([{text: prompt}]);
+      if(!r || !Array.isArray(r.pasos) || !r.pasos.length) throw new Error("La IA no ha devuelto un plan, prueba otra vez");
+      r.cant = r.cant || []; r.ing = r.ing || []; r.trucos = r.trucos || [];
+      batchIA = r;
+    }catch(e){ iaError = e.message || "No he podido pedir el plan"; }
+    batchCargando = false; pintar();
+  }
+
+  function guardar(r){
+    const g = guardadas().filter(x => x.id !== r.id);
+    g.unshift(r);
+    localStorage.setItem(GUARDADAS, JSON.stringify(g.slice(0, 50)));
+    aviso = "⭐ Guardada en «Mis recetas»"; pintar();
+    setTimeout(() => { aviso = ""; if(vista === "comidas") pintar(); }, 3000);
+  }
+  function quitar(id){
+    localStorage.setItem(GUARDADAS, JSON.stringify(guardadas().filter(x => x.id !== id)));
+    pintar();
+  }
+  const buscarReceta = id => RECETAS.find(r => r.id === id) || guardadas().find(r => r.id === id) || (iaReceta && iaReceta.id === id ? iaReceta : null);
 
   // Pasa ingredientes a la lista de la compra (sin repetir los que ya están)
   async function aLaCompra(nombres){
@@ -139,13 +234,19 @@
         <ol>${r.pasos.map(p => `<li>${esc(p)}</li>`).join("")}</ol>
         ${r.truco ? `<p class="cm-truco">💡 ${esc(r.truco)}</p>` : ""}
         <button class="btn sec sm cm-compra" data-ing="${r.id}" style="margin-top:10px">🛒 Añadir ingredientes a la compra</button>
+        ${r.id.startsWith("ia_") ? (guardadas().some(x => x.id === r.id)
+          ? `<button class="hb-link" data-quitar="${r.id}" style="display:block;margin:10px auto 0">Quitar de «Mis recetas»</button>`
+          : `<button class="btn sm" data-guardar="${r.id}" style="margin-top:8px">⭐ Guardar en «Mis recetas»</button>`) : ""}
       </div>` : ""}
     </div>`;
   }
 
   function pintar(){
     const app = document.getElementById("app");
-    const lista = RECETAS.filter(r => filtro === "todas" || r.aparato === filtro);
+    const mias = guardadas();
+    const lista = filtro === "mias" ? mias : RECETAS.filter(r => filtro === "todas" || r.aparato === filtro);
+    const plan = batchIA || BATCH;
+    const chip = (attr, val, actual, txt) => `<button ${attr}="${val}" class="${actual===val?"on":""}">${txt}</button>`;
     app.innerHTML = `
     <div class="topbar"><h1>Comidas 🍳</h1></div>
     <div class="seg" style="margin-bottom:12px">
@@ -154,38 +255,68 @@
     </div>
     ${aviso ? `<div class="ok" style="margin-bottom:10px">${aviso}</div>` : ""}
 
+    ${iaError ? `<div class="err" style="margin-bottom:10px">⚠ ${esc(iaError)}</div>` : ""}
     ${sub === "faciles" ? `
+    <div class="card cm-ia">
+      <h2>🧠 Receta a tu medida</h2>
+      <p class="muted" style="margin:4px 0 8px;font-size:13px">La IA mira las calorías que te quedan hoy y lo que hay en la despensa. ¿Has visto una receta de la Mambo que te gusta? Pega el nombre o la receta y te la adapto para perder grasa.</p>
+      <div class="cm-filtros">${["desayuno","comida","merienda","cena"].map(m => chip("data-im", m, iaMomento, m[0].toUpperCase()+m.slice(1))).join("")}</div>
+      <div class="cm-filtros">${[["cualquiera","Cualquier cosa"],["freidora","🌀 Freidora"],["mambo","🤖 Mambo"],["frio","🥗 Sin cocinar"]].map(([k,t]) => chip("data-ia", k, iaAparato, t)).join("")}</div>
+      <input type="text" id="cm-pide" value="${esc(iaPide)}" placeholder="Ej.: algo con pollo (opcional)">
+      <button class="btn sm" id="cm-pedir" style="margin-top:8px" ${iaCargando?"disabled":""}>${iaCargando ? '<span class="spin"></span>Pensando…' : (iaReceta ? "🔄 Otra receta" : "🧠 Hazme una receta")}</button>
+    </div>
+    ${iaReceta ? tarjetaReceta(iaReceta) : ""}
     <div class="cm-filtros">
-      ${[["todas","Todas"], ...Object.entries(APARATOS)].map(([k,t]) => `<button data-cf="${k}" class="${filtro===k?"on":""}">${t}</button>`).join("")}
+      ${[["todas","Todas"], ...Object.entries(APARATOS), ...(mias.length ? [["mias","⭐ Mis recetas ("+mias.length+")"]] : [])].map(([k,t]) => `<button data-cf="${k}" class="${filtro===k?"on":""}">${t}</button>`).join("")}
     </div>
     <p class="muted" style="margin:0 0 10px;font-size:12px">kcal y proteína aproximadas por ración. Toca una receta para verla.</p>
     ${lista.map(tarjetaReceta).join("")}
     ` : `
+    <div class="card cm-ia">
+      <h2>🧠 Otro plan de tuppers</h2>
+      <div class="cm-filtros" style="margin-top:6px">${chip("data-bp", 1, batchPersonas, "Para mí")}${chip("data-bp", 2, batchPersonas, "Para los dos")}</div>
+      <input type="text" id="cm-bpide" value="${esc(batchPide)}" placeholder="Algo que quieras o no quieras (opcional)">
+      <button class="btn sm" id="cm-batch-ia" style="margin-top:8px" ${batchCargando?"disabled":""}>${batchCargando ? '<span class="spin"></span>Pensando…' : "🧠 Hazme un plan nuevo"}</button>
+      ${batchIA ? '<button class="hb-link" id="cm-batch-base" style="display:block;margin:10px auto 0">Volver al plan de siempre</button>' : ""}
+    </div>
     <div class="card">
-      <h2>${BATCH.titulo}</h2>
-      <p class="muted" style="margin-top:4px">Cantidades para ti solo; si también es para Roney, el doble.</p>
+      <h2>${esc(plan.titulo)}</h2>
+      ${batchIA ? "" : '<p class="muted" style="margin-top:4px">Cantidades para ti solo; si también es para Roney, el doble.</p>'}
       <p class="cm-sub">Qué necesitas</p>
-      <ul class="cm-lista">${BATCH.cant.map(c => `<li>${esc(c)}</li>`).join("")}</ul>
+      <ul class="cm-lista">${plan.cant.map(c => `<li>${esc(c)}</li>`).join("")}</ul>
       <button class="btn sec sm" id="cm-batch-compra" style="margin-top:6px">🛒 Añadir todo a la compra</button>
     </div>
     <div class="card">
       <h2>Paso a paso</h2>
       <div class="cm-pasos">
-        ${BATCH.pasos.map(([t, quien, que]) => `
-        <div class="cm-paso"><span class="cm-t">${t}</span><div><b>${quien}</b><p>${esc(que)}</p></div></div>`).join("")}
+        ${plan.pasos.map(([t, quien, que]) => `
+        <div class="cm-paso"><span class="cm-t">${esc(t)}</span><div><b>${esc(quien)}</b><p>${esc(que)}</p></div></div>`).join("")}
       </div>
     </div>
     <div class="card">
       <h2>Trucos</h2>
-      <ul class="cm-lista">${BATCH.trucos.map(t => `<li>${esc(t)}</li>`).join("")}</ul>
+      <ul class="cm-lista">${plan.trucos.map(t => `<li>${esc(t)}</li>`).join("")}</ul>
     </div>`}`;
 
     document.querySelectorAll("[data-cs]").forEach(b => b.onclick = () => { sub = b.dataset.cs; pintar(); });
     document.querySelectorAll("[data-cf]").forEach(b => b.onclick = () => { filtro = b.dataset.cf; abierta = null; pintar(); });
     document.querySelectorAll("[data-rec]").forEach(b => b.onclick = () => { abierta = abierta === b.dataset.rec ? null : b.dataset.rec; pintar(); });
-    document.querySelectorAll("[data-ing]").forEach(b => b.onclick = () => aLaCompra(RECETAS.find(r => r.id === b.dataset.ing).ing));
+    document.querySelectorAll("[data-ing]").forEach(b => b.onclick = () => aLaCompra(buscarReceta(b.dataset.ing).ing));
     const bc = document.getElementById("cm-batch-compra");
-    if(bc) bc.onclick = () => aLaCompra(BATCH.ing);
+    if(bc) bc.onclick = () => aLaCompra(plan.ing);
+    // IA
+    const pide = document.getElementById("cm-pide");
+    if(pide) pide.oninput = () => { iaPide = pide.value; };
+    document.querySelectorAll("[data-im]").forEach(b => b.onclick = () => { iaMomento = b.dataset.im; pintar(); });
+    document.querySelectorAll("[data-ia]").forEach(b => b.onclick = () => { iaAparato = b.dataset.ia; pintar(); });
+    const pd = document.getElementById("cm-pedir"); if(pd) pd.onclick = pedirReceta;
+    document.querySelectorAll("[data-guardar]").forEach(b => b.onclick = () => guardar(buscarReceta(b.dataset.guardar)));
+    document.querySelectorAll("[data-quitar]").forEach(b => b.onclick = () => quitar(b.dataset.quitar));
+    const bpide = document.getElementById("cm-bpide");
+    if(bpide) bpide.oninput = () => { batchPide = bpide.value; };
+    document.querySelectorAll("[data-bp]").forEach(b => b.onclick = () => { batchPersonas = parseInt(b.dataset.bp); pintar(); });
+    const bi = document.getElementById("cm-batch-ia"); if(bi) bi.onclick = pedirBatch;
+    const bb = document.getElementById("cm-batch-base"); if(bb) bb.onclick = () => { batchIA = null; pintar(); };
   }
 
   window.renderComidas = function(){ pintar(); };
