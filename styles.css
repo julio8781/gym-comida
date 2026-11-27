@@ -226,3 +226,22 @@ button.hb-d{background:none;font-family:inherit;cursor:pointer;touch-action:mani
 .md-cambio{font-size:13px;margin-top:2px}
 .bj-logros{list-style:none;padding:0;margin:0;display:grid;gap:6px}
 .bj-logros li{background:var(--carrot-soft);border-radius:10px;padding:8px 10px;font-size:14px}
+
+/* ===== Comidas (comidas.js) ===== */
+.cm-filtros{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:6px}
+.cm-filtros button{flex:0 0 auto;border:2px solid var(--line);background:var(--card);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer;font-family:inherit}
+.cm-filtros button.on{border-color:var(--carrot);background:var(--carrot-soft);color:var(--carrot)}
+.cm-rec{padding:0;overflow:hidden}
+.cm-cab{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:14px 16px;cursor:pointer;font-family:inherit;color:var(--ink)}
+.cm-nom{font-weight:800;font-size:15px}
+.cm-meta{font-size:12px;margin-top:2px}
+.cm-num{text-align:center;min-width:46px}
+.cm-num b{display:block;font-size:15px}
+.cm-num span{font-size:11px;color:var(--muted)}
+.cm-det{padding:0 16px 14px}
+.cm-det ul,.cm-det ol,ul.cm-lista{margin:4px 0 0 18px;padding:0;font-size:14px;line-height:1.5}
+.cm-sub{font-weight:800;font-size:13px;margin-top:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.cm-truco{background:var(--carrot-soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-top:10px}
+.cm-pasos{display:grid;gap:10px;margin-top:8px}
+.cm-paso{display:flex;gap:10px;align-items:flex-start;font-size:14px}
+.cm-t{flex:0 0 42px;font-weight:800;color:var(--carrot)}

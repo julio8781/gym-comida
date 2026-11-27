@@ -568,6 +568,23 @@ if(nav && !nav.querySelector('[data-v="cuentas"]')){
   }
 }
 
+// Botón de Comidas 🍳 (comidas.js), justo después de Compra
+if(nav && !nav.querySelector('[data-v="comidas"]')){
+  const compra = nav.querySelector('[data-v="compra"]');
+  if(compra){
+    const b = compra.cloneNode(true);
+    b.classList.remove("on");
+    b.setAttribute("data-v","comidas");
+    const ico = b.querySelector(".ico");
+    if(ico) ico.textContent = "🍳";
+    for(let i=b.childNodes.length-1;i>=0;i--){
+      const n = b.childNodes[i];
+      if(n.nodeType===3 && n.textContent.trim()){ n.textContent = "Comidas"; break; }
+    }
+    compra.after(b);
+  }
+}
+
 nav.querySelectorAll("button").forEach(b=>b.onclick=async ()=>{
   vista=b.dataset.v; errorMsg="";
   if(vista==="diario"){ await cargarDia(); await cargarCompartidas(); }
@@ -587,6 +604,7 @@ function render(){
   else if(vista==="compra") renderCompra();
   else if(vista==="gym") renderGym();
   else if(vista==="cuentas"){ if(window.renderCuentas) renderCuentas(); }
+  else if(vista==="comidas"){ if(window.renderComidas) renderComidas(); }
   else renderPuntos();
 }
 
