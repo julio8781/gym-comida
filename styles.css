@@ -195,3 +195,13 @@
   top: env(safe-area-inset-top, 0px);
   z-index: 20;
 }
+/* ===== Hábito de gym (habito.js) ===== */
+.hb h2{margin:0}
+.hb-racha{font-weight:800;font-size:14px;background:var(--carrot-soft);color:var(--carrot);border-radius:999px;padding:4px 10px;white-space:nowrap}
+.hb-dias{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px}
+.hb-d{border:2px solid var(--line);border-radius:10px;text-align:center;padding:4px 0;font-size:12px;font-weight:700;color:var(--muted)}
+.hb-d b{display:block;font-size:17px;min-height:22px}
+.hb-d.toca{border-style:dashed;border-color:var(--carrot)}
+.hb-d.si{background:var(--green-soft);border-color:var(--green);color:var(--green)}
+.hb-d.hoy{box-shadow:0 0 0 2px var(--carrot) inset}
+.hb-link{background:none;border:0;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;text-decoration:underline;margin-top:8px;padding:0}

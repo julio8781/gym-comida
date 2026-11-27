@@ -1350,6 +1350,9 @@ function renderGym(){
   const reg = sesionG?.registro;
   const done = reg ? reg.ejercicios.filter(x=>x.hecho).length : 0;
 
+  // Hábito (habito.js): hoy propone la rutina que toca según la semana
+  if(mio && esHoyG && !reg && window.habitoSugerir){ const s = habitoSugerir(); if(s) diaGym = s; }
+
   app.innerHTML = `
   <div class="topbar"><h1>Gym 🏋️</h1><div style="display:flex;align-items:center;gap:8px">${htmlSelectorTema()}<button class="gear" id="btn-ajustes">⚙️</button></div></div>
 
@@ -1365,6 +1368,8 @@ function renderGym(){
     <button id="g-next" ${esHoyG?"disabled":""}>›</button>
   </div>
   ${errorMsg?'<div class="err" style="margin-bottom:10px">⚠ '+esc(errorMsg)+'</div>':""}
+
+  ${window.habitoHTML ? habitoHTML() : ""}
 
   ${!reg && mio ? `
   <div class="card">
@@ -1406,6 +1411,7 @@ function renderGym(){
   ${mio?'<button class="btn sec sm" id="g-editar" style="margin-top:10px">✏️ Editar mi rutina</button>':""}`;
 
   wireSelectorTema();
+  if(window.habitoWire) habitoWire();
   document.getElementById("btn-ajustes").onclick = renderAjustes;
   document.getElementById("g-prev").onclick = async ()=>{ fechaGym = addDias(fechaGym,-1); await cargarGymDia(); render(); };
   const gn = document.getElementById("g-next");
@@ -1432,6 +1438,7 @@ function renderGym(){
     const x = sesionG.registro.ejercicios[parseInt(b.dataset.i)];
     x.hecho = !x.hecho;
     await guardarSesion(); puntosCache=null;
+    if(window.habitoRefrescar) habitoRefrescar();
     window._entrenoHoy = fechaGym===hoy() ? sesionG.registro.ejercicios.every(y=>y.hecho) : window._entrenoHoy;
     render();
   };});
