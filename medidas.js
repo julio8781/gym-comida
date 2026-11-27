@@ -2,7 +2,8 @@
    PASTANAGA · módulo Medidas («Mis datos»)
    Autónomo, como habito.js: se apoya en sb, uid, vista, hoy(), esc()
    y render() de app.js. Usa su propia tabla, pastanaga_medidas
-   (ver sql/medidas.sql), privada: cada uno solo ve las suyas.
+   (ver sql/medidas.sql). Los dos veis las de los dos; cada uno solo
+   apunta las suyas.
 
    La idea: una vez por semana (el domingo) apuntar el peso y, si hay
    cinta métrica, la cintura, y ver cómo bajan. Las dos son opcionales,
@@ -18,6 +19,7 @@
   };
 
   let medidas = null;       // [{fecha, cintura, peso}] de más antigua a más nueva
+  let deQuien = null;       // de quién son las medidas cargadas
   let cargando = false, error = "", abierta = false, punto = null, metrica = null;
 
   const num = v => (v === null || v === undefined || v === "") ? null : Number(v);
@@ -26,10 +28,11 @@
   const diasEntre = (a, b) => Math.round((new Date(b+"T12:00:00") - new Date(a+"T12:00:00")) / 86400000);
   const serie = k => (medidas||[]).filter(m => m[k] !== null);
 
-  async function cargar(){
+  async function cargar(user){
     if(cargando) return;
     cargando = true; error = "";
-    const {data, error:e} = await sb.from("pastanaga_medidas").select("fecha,cintura,peso").eq("user_id", uid).order("fecha");
+    const {data, error:e} = await sb.from("pastanaga_medidas").select("fecha,cintura,peso").eq("user_id", user).order("fecha");
+    deQuien = user;
     if(e) error = "Falta crear la tabla de medidas en Supabase (sql/medidas.sql)";
     medidas = (data||[]).map(m => ({fecha: m.fecha, cintura: num(m.cintura), peso: num(m.peso)}));
     cargando = false;
@@ -82,7 +85,7 @@
 
   // Para «Me quiero borrar»: cuánto ha bajado cada medida desde la primera
   window.medidasResumen = function(){
-    if(!medidas) return null;
+    if(!medidas || deQuien !== uid) return null;
     const r = {};
     for(const k of Object.keys(METRICAS)){
       const s = serie(k);
@@ -92,10 +95,12 @@
   };
 
   window.medidasHTML = function(){
-    if(medidas === null){ cargar(); return '<div class="card"><p class="muted">Cargando tus medidas…</p></div>'; }
+    const user = gymUser || uid, mio = user === uid;
+    if(medidas === null || deQuien !== user){ medidas = null; punto = null; cargar(user); return '<div class="card"><p class="muted">Cargando datos…</p></div>'; }
+    const nombre = mio ? "" : esc(parejaPerfil ? parejaPerfil.nombre : "");
 
     const ultima = medidas[medidas.length-1];
-    const tocaMedir = !ultima || diasEntre(ultima.fecha, hoy()) >= 6;
+    const tocaMedir = mio && (!ultima || diasEntre(ultima.fecha, hoy()) >= 6);
     const conGrafica = Object.keys(METRICAS).filter(k => serie(k).length > 1);
     if(!conGrafica.includes(metrica)) metrica = conGrafica[0] || null;
 
@@ -103,7 +108,8 @@
     const subio = Object.keys(METRICAS).some(k => { const s = serie(k); return s.length > 1 && s[s.length-1][k] > s[s.length-2][k]; });
 
     const cuerpo = !medidas.length
-      ? '<p class="muted" style="margin:4px 0 10px">Pésate hoy (y mide la cintura si tienes cinta): será tu punto de partida. Luego, una vez por semana.</p>'
+      ? (mio ? '<p class="muted" style="margin:4px 0 10px">Pésate hoy (y mide la cintura si tienes cinta): será tu punto de partida. Luego, una vez por semana.</p>'
+             : '<p class="muted" style="margin:4px 0 4px">Aún no ha apuntado nada.</p>')
       : `
         <div class="md-bloques">${bloque("peso")}${bloque("cintura")}</div>
         ${subio ? '<p class="muted" style="margin-top:4px;font-size:12px">Una semana mala no es la tendencia: mira la línea, no el último punto.</p>' : ""}
@@ -116,12 +122,12 @@
     return `
     <div class="card md ${tocaMedir ? "md-toca" : ""}">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <h2>📊 Mis datos</h2>
+        <h2>${mio ? "📊 Mis datos" : "📊 Datos de "+nombre}</h2>
         ${tocaMedir && medidas.length ? '<span class="hb-racha">Toca pesarse</span>' : ""}
       </div>
       ${error ? '<div class="err" style="margin-top:8px">⚠ '+esc(error)+'</div>' : ""}
       ${cuerpo}
-      <button class="btn ${tocaMedir ? "" : "sec"} sm" id="md-abrir" style="margin-top:8px">${tocaMedir ? "⚖️ Apuntar peso y medidas" : "Corregir las de hoy"}</button>
+      ${mio ? `<button class="btn ${tocaMedir ? "" : "sec"} sm" id="md-abrir" style="margin-top:8px">${tocaMedir ? "⚖️ Apuntar peso y medidas" : "Corregir las de hoy"}</button>` : ""}
     </div>
     ${abierta ? hojaMedir(ultima && ultima.fecha === hoy() ? ultima : null) : ""}`;
   };
@@ -160,7 +166,7 @@
     if(mal){ err.innerHTML = '<div class="err" style="margin-top:8px">'+mal+'</div>'; return; }
     const {error:e} = await sb.from("pastanaga_medidas").upsert({user_id: uid, fecha: hoy(), cintura: c.v, peso: p.v});
     if(e){ err.innerHTML = '<div class="err" style="margin-top:8px">No se guardó: '+esc(e.message)+'</div>'; return; }
-    abierta = false; punto = null; medidas = null;   // recargar
+    abierta = false; punto = null; medidas = null; deQuien = null;   // recargar
     render();
   }
 

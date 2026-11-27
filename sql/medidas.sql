@@ -1,7 +1,7 @@
 -- ============================================================
 -- PASTANAGA · medidas (cintura y peso, una vez por semana)
 -- Tabla NUEVA: no toca ninguna de las que ya existen.
--- Privada: cada uno solo ve y cambia las suyas.
+-- Los dos veis las de los dos; cada uno solo apunta y cambia las suyas.
 -- Se pega en Supabase → SQL Editor → Run (se puede repetir).
 -- ============================================================
 create table if not exists public.pastanaga_medidas (
@@ -18,7 +18,7 @@ alter table public.pastanaga_medidas enable row level security;
 drop policy if exists "medidas: ver las mias" on public.pastanaga_medidas;
 create policy "medidas: ver las mias"
   on public.pastanaga_medidas for select
-  to authenticated using (auth.uid() = user_id);
+  to authenticated using (true);
 
 drop policy if exists "medidas: crear las mias" on public.pastanaga_medidas;
 create policy "medidas: crear las mias"

@@ -1412,7 +1412,7 @@ function renderGym(){
 
   ${window.habitoHTML ? habitoHTML() : ""}
 
-  ${mio && window.medidasHTML ? medidasHTML() : ""}
+  ${window.medidasHTML ? medidasHTML() : ""}
 
   ${mio && !(rut.A||[]).includes("calentamiento") ? `
   <div class="card" style="border:2px dashed var(--carrot)">
