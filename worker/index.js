@@ -66,12 +66,13 @@ async function usuarioDe(request, env) {
    AVISOS DEL GYM (tarea programada cada 15 min)
    Solo para quien usa la tarjeta «Mi semana» (tabla pastanaga_semanas).
    Misma lógica que habito.js:
-   - semana de gym → lunes, miércoles y viernes; cumplida con 2 sesiones
-   - semana en casa → rutina D; cumplida con 1
+   - semana de gym → los días elegidos (de serie L-X-V); cumplida con 2 sesiones
+   - semana en casa → rutina D los días elegidos (de serie M y S); cumplida con 1
    - una sesión cuenta en cuanto hay UN ejercicio marcado
 ============================================================ */
 const MINIMO = { gym: 2, casa: 1 };
-const RUTINA_GYM = { 0: "A", 2: "B", 4: "C" };          // 0 = lunes
+const DIAS_DEF = { gym: [0, 2, 4], casa: [1, 5] };       // 0 = lunes (como habito.js)
+const ROTACION = ["A", "B", "C"];
 const NOMBRES_DEF = { A: "Full body 1", B: "Full body 2", C: "Cardio y brazos", D: "En casa" };
 
 // Fecha y hora de Madrid (con su horario de verano), redondeada a 15 min
@@ -94,7 +95,16 @@ function fueAlGym(g) {
 }
 
 // Qué aviso toca a una persona en este momento (o null)
-export function avisoPara({ hora, diaSemana, hoy }, semana, sesiones, nombres) {
+// Días de una semana: los suyos, si no los de la última semana del mismo tipo, si no los de serie
+export function diasDe(filas, lunes, tipo) {
+  const propia = filas.find(f => f.lunes === lunes);
+  if (propia?.dias?.length) return [...propia.dias].sort((a, b) => a - b);
+  const previas = filas.filter(f => f.lunes < lunes && f.dias?.length && ((f.semana_gym ?? f.roney_tarde) ? "gym" : "casa") === tipo)
+    .sort((a, b) => (a.lunes < b.lunes ? 1 : -1));
+  return previas.length ? [...previas[0].dias].sort((a, b) => a - b) : DIAS_DEF[tipo];
+}
+
+export function avisoPara({ hora, diaSemana, hoy }, semana, sesiones, nombres, dias) {
   // semana: true (gym) | false (casa) | undefined (sin elegir)
   const fueHoy = sesiones.includes(hoy);
   const n = sesiones.length;
@@ -105,16 +115,18 @@ export function avisoPara({ hora, diaSemana, hoy }, semana, sesiones, nombres) {
     return null;
   }
   const tipo = semana ? "gym" : "casa";
-  const cumplida = n >= MINIMO[tipo];
+  dias = dias || DIAS_DEF[tipo];
+  const cumplida = n >= Math.max(1, Math.min(MINIMO[tipo], dias.length));
+  const tocaHoy = dias.includes(diaSemana);
 
-  if (tipo === "gym" && diaSemana in RUTINA_GYM && !fueHoy) {
-    const k = RUTINA_GYM[diaSemana];
+  if (tipo === "gym" && tocaHoy && !fueHoy) {
+    const k = ROTACION[dias.indexOf(diaSemana) % ROTACION.length];
     if (hora === "18:00")
       return { titulo: `Hoy toca ${nombres[k] || NOMBRES_DEF[k]} 💪`, cuerpo: "~45 min y la semana sigue sumando.", tag: "gym-hoy" };
     if (hora === "21:15")
       return { titulo: "¿Has ido hoy? 🔥", cuerpo: "Márcalo en Gym para que cuente.", tag: "gym-hoy" };
   }
-  if (tipo === "casa" && !cumplida && (diaSemana === 1 || diaSemana === 5) && hora === "19:00")
+  if (tipo === "casa" && !cumplida && tocaHoy && !fueHoy && hora === "19:00")
     return { titulo: "Semana en casa 🏠", cuerpo: "20 min de la rutina «En casa» y la semana cuenta.", tag: "gym-casa" };
 
   if (diaSemana === 6 && hora === "20:00" && !cumplida)
@@ -142,7 +154,9 @@ async function avisosGym(env, fecha) {
     const semana = fila ? (fila.semana_gym ?? fila.roney_tarde) : undefined;
     const sesiones = gyms.filter(g => g.user_id === u && fueAlGym(g)).map(g => g.fecha);
     const nombres = perfiles.find(p => p.user_id === u)?.rutina?.nombres || {};
-    const aviso = avisoPara(ahora, semana, sesiones, nombres);
+    const tipo = semana ? "gym" : "casa";
+    const dias = diasDe(todas.filter(s => s.user_id === u), lunes, tipo);
+    const aviso = avisoPara(ahora, semana, sesiones, nombres, dias);
     if (!aviso) continue;
     console.log("Aviso gym", ahora.hoy, ahora.hora, u, aviso.titulo);
     await avisarUsuario(env, u, aviso.titulo, aviso.cuerpo, aviso.tag);

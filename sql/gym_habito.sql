@@ -43,3 +43,7 @@ drop policy if exists "semanas: cambiar las mias" on public.pastanaga_semanas;
 create policy "semanas: cambiar las mias"
   on public.pastanaga_semanas for update
   to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Los días elegidos de cada semana (0 = lunes … 6 = domingo).
+-- Vacío = los de la última semana del mismo tipo (o L-X-V / M-S de serie).
+alter table public.pastanaga_semanas add column if not exists dias smallint[];
