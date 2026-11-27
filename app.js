@@ -1465,11 +1465,13 @@ function renderGym(){
   ${mio?'<p class="muted" style="margin-top:8px">Toca el nombre de un ejercicio para ver cómo se hace 📖 · los kg quedan registrados en este día</p>':""}
   ` : ""}
 
-  ${mio?'<button class="btn sec sm" id="g-editar" style="margin-top:10px">✏️ Editar mi rutina</button>':""}`;
+  ${mio?'<button class="btn sec sm" id="g-editar" style="margin-top:10px">✏️ Editar mi rutina</button>':""}
+  ${mio && window.bajaHTML ? bajaHTML() : ""}`;
 
   wireSelectorTema();
   if(window.habitoWire) habitoWire();
   if(window.medidasWire) medidasWire();
+  if(window.bajaWire) bajaWire();
   document.getElementById("btn-ajustes").onclick = renderAjustes;
   document.getElementById("g-prev").onclick = async ()=>{ fechaGym = addDias(fechaGym,-1); await cargarGymDia(); render(); };
   const gn = document.getElementById("g-next");

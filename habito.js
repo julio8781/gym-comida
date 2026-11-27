@@ -189,8 +189,7 @@
   };
 
   // Guarda cómo es esta semana (tipo y días)
-  async function guardar(gym, dias){
-    const lunes = lunesDe(fechaGym || hoy());
+  async function guardar(gym, dias, lunes = lunesDe(fechaGym || hoy())){
     const fila = {user_id: uid, lunes, semana_gym: gym};
     if(dias && !sinColumnaDias) fila.dias = dias;
     let {error:e} = await sb.from("pastanaga_semanas").upsert(fila);
@@ -272,6 +271,30 @@
   };
 
   // Tras marcar un ejercicio: volver a leer para que cuenten los puntitos
+  // ---- para «Me quiero borrar» (baja.js) ----
+  // Lo conseguido: racha, semanas cumplidas en total y sesiones (último año)
+  window.habitoResumen = function(){
+    if(!datos || datos.user !== uid) return null;
+    const fechas = [...Object.keys(datos.semanas), ...Object.keys(datos.sesiones)].sort();
+    if(!fechas.length) return {racha: 0, cumplidas: 0, sesiones: 0, desde: null};
+    let l = lunesDe(fechas[0]), cumplidas = 0;
+    const fin = lunesDe(hoy());
+    while(l <= fin){ if(semana(l).cumplida) cumplidas++; l = addDias(l, 7); }
+    return {racha: racha(), cumplidas, sesiones: Object.keys(datos.sesiones).length, desde: fechas[0]};
+  };
+  // Bajar el plan de esta semana (y las siguientes, que lo heredan) a 1 día
+  window.habitoBajarPlan = async function(){
+    if(!datos) return;
+    const lunes = lunesDe(hoy()), w = semana(lunes);
+    const queda = w.elegidos.find(i => i >= diaSemana(hoy())) ?? w.elegidos[w.elegidos.length-1];
+    await guardar(w.gym === undefined ? true : w.gym, [queda], lunes);
+  };
+  // Pasar esta semana a «en casa», con un día a partir de mañana
+  window.habitoSemanaCasa = async function(){
+    if(!datos) return;
+    await guardar(false, [Math.min(6, diaSemana(hoy()) + 1)], lunesDe(hoy()));
+  };
+
   window.habitoRefrescar = function(){
     if(datos) cargar(datos.user);
   };

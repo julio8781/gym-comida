@@ -107,7 +107,7 @@ export function diasDe(filas, lunes, tipo) {
 export function avisoPara({ hora, diaSemana, hoy }, semana, sesiones, nombres, dias, medidaReciente = true) {
   // Domingo por la mañana: medir la cintura (si no lo ha hecho en los últimos 6 días)
   if (diaSemana === 6 && hora === "11:00" && !medidaReciente)
-    return { titulo: "⚖️ Toca pesarse", cuerpo: "Peso (y cintura si tienes cinta): 10 segundos y ves si baja la barriga.", tag: "gym-medidas" };
+    return { titulo: "⚖️ Toca pesarse", cuerpo: "Peso (y cintura si tienes cinta): 10 segundos y ves cómo vas.", tag: "gym-medidas" };
 
   // semana: true (gym) | false (casa) | undefined (sin elegir)
   const fueHoy = sesiones.includes(hoy);

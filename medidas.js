@@ -1,5 +1,5 @@
 /* ============================================================
-   PASTANAGA · módulo Medidas («Mi barriga»)
+   PASTANAGA · módulo Medidas («Mis datos»)
    Autónomo, como habito.js: se apoya en sb, uid, vista, hoy(), esc()
    y render() de app.js. Usa su propia tabla, pastanaga_medidas
    (ver sql/medidas.sql), privada: cada uno solo ve las suyas.
@@ -80,6 +80,17 @@
       </div>`;
   }
 
+  // Para «Me quiero borrar»: cuánto ha bajado cada medida desde la primera
+  window.medidasResumen = function(){
+    if(!medidas) return null;
+    const r = {};
+    for(const k of Object.keys(METRICAS)){
+      const s = serie(k);
+      if(s.length > 1) r[k] = {dif: Math.round((s[s.length-1][k] - s[0][k]) * 10) / 10, desde: s[0].fecha, unidad: METRICAS[k].unidad};
+    }
+    return r;
+  };
+
   window.medidasHTML = function(){
     if(medidas === null){ cargar(); return '<div class="card"><p class="muted">Cargando tus medidas…</p></div>'; }
 
@@ -105,7 +116,7 @@
     return `
     <div class="card md ${tocaMedir ? "md-toca" : ""}">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <h2>⚖️ Mi barriga</h2>
+        <h2>📊 Mis datos</h2>
         ${tocaMedir && medidas.length ? '<span class="hb-racha">Toca pesarse</span>' : ""}
       </div>
       ${error ? '<div class="err" style="margin-top:8px">⚠ '+esc(error)+'</div>' : ""}

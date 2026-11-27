@@ -224,3 +224,5 @@ button.hb-d{background:none;font-family:inherit;cursor:pointer;touch-action:mani
 .md-bloques{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-top:6px}
 .md-et{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .md-cambio{font-size:13px;margin-top:2px}
+.bj-logros{list-style:none;padding:0;margin:0;display:grid;gap:6px}
+.bj-logros li{background:var(--carrot-soft);border-radius:10px;padding:8px 10px;font-size:14px}
