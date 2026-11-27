@@ -246,11 +246,9 @@ function bloqueEscena({total, objetivo, entreno, nombre}){
   </div>`;
 }
 
-// Ejercicios con 2 fotos (inicio y final) en img/ej/<id>/0.jpg y 1.jpg: de Free Exercise DB,
-// dominio público (github.com/yuhonas/free-exercise-db). Los demás usan su GIF de img/ si lo hay.
-const FOTOS_EJ = new Set(["calentamiento","cinta_inclinada","intervalos","prensa","press_maquina","sentadilla_goblet",
-  "remo_maquina","press_hombro_mancuernas","crunch_polea","zancadas","curl_biceps","triceps_polea","plancha_lateral",
-  "flexiones","sentadilla_aire","puente_gluteo"]);
+// Cada ejercicio tiene 2 fotos (inicio y final) en img/ej/<id>/0.jpg y 1.jpg, de Free Exercise DB,
+// dominio público (github.com/yuhonas/free-exercise-db). Antes eran GIF de una web con derechos.
+const SIN_FOTO = new Set(["burpees"]);   // no está en esa base de datos
 const GRUPOS = ["En casa","Pecho","Espalda","Pierna","Hombro","Bíceps","Tríceps","Core","Cardio"];
 const BIB = {
   flexiones:{n:"Flexiones",m:"En casa",s:"3 × máximo",p:0,tips:["Cuerpo en línea recta, abdomen apretado","Si no salen, apoya las rodillas y a subir de nivel"]},
@@ -1571,10 +1569,10 @@ function renderFicha(id){
   <div class="sheet">
     <h2>${e.n}</h2>
     <p class="muted" style="margin:2px 0 10px">${e.m} · ${e.s}</p>
-    ${FOTOS_EJ.has(id) ? `
+    ${!SIN_FOTO.has(id) ? `
     <div class="ej-fotos" title="Inicio y final del movimiento">
       <img src="img/ej/${id}/0.jpg" alt="${e.n}: inicio"><img src="img/ej/${id}/1.jpg" alt="${e.n}: final">
-    </div>` : `<img src="img/${id}.gif" style="width:100%;border-radius:14px;background:#f2efe9" onerror="this.outerHTML='<div style=&quot;background:#f2efe9;border-radius:14px;padding:40px;text-align:center;font-size:44px&quot;>💪<p style=&quot;font-size:13px;color:#78716c;margin-top:6px&quot;>Sin foto todavía</p></div>'">`}
+    </div>` : `<div style="background:#f2efe9;border-radius:14px;padding:40px;text-align:center;font-size:44px">💪<p style="font-size:13px;color:#78716c;margin-top:6px">Sin foto</p></div>`}
     <div style="margin-top:12px">
       ${e.tips.map(t=>'<p class="pt">✅ '+t+'</p>').join("")}
     </div>
