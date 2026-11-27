@@ -2,3 +2,7 @@
 main = "index.js"
 compatibility_date = "2026-08-25"
 compatibility_flags = ["nodejs_compat"]
+
+# Avisos del gym: cada 15 min mira si a alguien le toca aviso (hora de Madrid)
+[triggers]
+crons = ["*/15 * * * *"]

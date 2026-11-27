@@ -88,13 +88,23 @@ async function activarPush(){
   return sub;
 }
 
+// El Worker solo acepta avisos de alguien con sesión iniciada
+async function cabecerasWorker(){
+  const h = {"Content-Type":"application/json"};
+  try{
+    const {data:{session}} = await sb.auth.getSession();
+    if(session) h.Authorization = "Bearer " + session.access_token;
+  }catch(e){}
+  return h;
+}
+
 async function probarPush(){
   const sub = await activarPush();
   if(!sub) return false;
   try{
     const res = await fetch(PUSH_WORKER, {
       method: "POST",
-      headers: {"Content-Type":"application/json"},
+      headers: await cabecerasWorker(),
       body: JSON.stringify({ subscription: sub.toJSON() }),
     });
     const data = await res.json();
@@ -108,7 +118,7 @@ async function avisar(userId, titulo, cuerpo){
   try{
     await fetch(PUSH_WORKER, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers: await cabecerasWorker(),
       body: JSON.stringify({ user_id: userId, titulo, cuerpo }),
     });
   }catch(e){ /* si falla el aviso, no rompemos nada */ }
