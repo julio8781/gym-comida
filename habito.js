@@ -6,10 +6,9 @@
    pastanaga_semanas (ver sql/gym_habito.sql).
 
    La idea:
-   - Cada semana se responde «¿Roney va de tarde?».
-     Sí → semana de gym: lunes, miércoles y viernes (antes de recogerlo
-          a las 21:00). Cuenta como cumplida con 2 sesiones.
-     No → semana en casa: rutina D. Cuenta como cumplida con 1.
+   - Cada semana se elige qué semana es (columna semana_gym):
+     🏋️ semana de gym → lunes, miércoles y viernes. Cumplida con 2 sesiones.
+     🏠 semana en casa → rutina D. Cumplida con 1.
    - Una sesión cuenta en cuanto marcas UN ejercicio: ir ya es ganar.
    - La racha es de SEMANAS cumplidas: fallar un día no la rompe.
 
@@ -43,13 +42,13 @@
     const desde = addDias(lunesDe(hoy()), -7*52);   // un año atrás basta
     try{
       const [{data:sem, error:e1}, {data:gyms, error:e2}] = await Promise.all([
-        sb.from("pastanaga_semanas").select("lunes,roney_tarde").eq("user_id", user).gte("lunes", desde),
+        sb.from("pastanaga_semanas").select("*").eq("user_id", user).gte("lunes", desde),
         sb.from("pastanaga_gym").select("fecha,dia,hechos,registro").eq("user_id", user).gte("fecha", desde),
       ]);
       if(e1) error = "Falta crear la tabla de semanas en Supabase (sql/gym_habito.sql)";
       if(e2) error = "No he podido leer tus sesiones: " + e2.message;
       const semanas = {};
-      (sem||[]).forEach(s => semanas[s.lunes] = s.roney_tarde);
+      (sem||[]).forEach(s => semanas[s.lunes] = (s.semana_gym ?? s.roney_tarde));
       const sesiones = {};
       (gyms||[]).forEach(g => { if(fueAlGym(g)) sesiones[g.fecha] = {dia: g.dia}; });
       datos = {user, semanas, sesiones};
@@ -69,8 +68,8 @@
 
   // ---- cálculos de una semana ----
   function semana(lunes){
-    const tarde = datos.semanas[lunes];            // true | false | undefined
-    const tipo = tarde ? "gym" : "casa";           // sin responder → como semana en casa
+    const gym = datos.semanas[lunes];            // true | false | undefined
+    const tipo = gym ? "gym" : "casa";           // sin responder → como semana en casa
     const dias = [];
     let n = 0;
     for(let i=0;i<7;i++){
@@ -79,7 +78,7 @@
       if(s) n++;
       dias.push({f, s});
     }
-    return {lunes, tarde, tipo, dias, n, minimo: MINIMO[tipo], cumplida: n >= MINIMO[tipo]};
+    return {lunes, gym, tipo, dias, n, minimo: MINIMO[tipo], cumplida: n >= MINIMO[tipo]};
   }
 
   // Semanas cumplidas seguidas. La de ahora suma si ya está cumplida;
@@ -106,17 +105,17 @@
     const H = hoy();
     const r = racha();
 
-    const pregunta = (w.tarde === undefined && mio) ? `
-      <p style="font-weight:800;margin:4px 0 8px">¿Roney va de tarde esta semana?</p>
+    const pregunta = (w.gym === undefined && mio) ? `
+      <p style="font-weight:800;margin:4px 0 8px">¿Qué semana toca?</p>
       <div class="row">
-        <button class="btn green sm" id="hb-si">Sí · gym</button>
-        <button class="btn sec sm" id="hb-no">No · en casa</button>
+        <button class="btn green sm" id="hb-si">🏋️ De gym</button>
+        <button class="btn sec sm" id="hb-no">🏠 En casa</button>
       </div>` : "";
 
-    const plan = w.tarde === undefined
+    const plan = w.gym === undefined
       ? (mio ? "" : '<p class="muted">Aún no ha dicho cómo es su semana</p>')
       : (w.tipo === "gym"
-          ? '<p class="muted">🏋️ Semana de gym · L, X y V antes de recoger a Roney · cuenta con 2</p>'
+          ? '<p class="muted">🏋️ Semana de gym · lunes, miércoles y viernes · cuenta con 2</p>'
           : '<p class="muted">🏠 Semana en casa · rutina "En casa" · cuenta con 1 (si vas al gym, también vale)</p>');
 
     const puntos = w.dias.map((d,i)=>{
@@ -130,8 +129,8 @@
       ? '<div class="ok" style="margin-top:8px">✅ Semana cumplida'+(mio?", sigue así":"")+'</div>'
       : `<p style="font-weight:700;margin-top:8px">${w.n}/${w.minimo} · ${mio ? "te falta" : "le falta"} ${w.minimo - w.n} para cumplir la semana</p>`;
 
-    const cambiar = (mio && w.tarde !== undefined)
-      ? '<button id="hb-cambiar" class="hb-link">cambiar: '+(w.tarde ? "Roney no va de tarde" : "Roney sí va de tarde")+'</button>' : "";
+    const cambiar = (mio && w.gym !== undefined)
+      ? '<button id="hb-cambiar" class="hb-link">cambiar: '+(w.gym ? "pasar a semana en casa" : "pasar a semana de gym")+'</button>' : "";
 
     return `
     <div class="card hb">
@@ -149,11 +148,14 @@
   };
 
   // Guarda la respuesta de esta semana
-  async function responder(tarde){
+  async function responder(gym){
     const lunes = lunesDe(hoy());
-    const {error:e} = await sb.from("pastanaga_semanas").upsert({user_id: uid, lunes, roney_tarde: tarde});
+    let {error:e} = await sb.from("pastanaga_semanas").upsert({user_id: uid, lunes, semana_gym: gym});
+    // Mientras la columna no se haya renombrado en Supabase (sql/gym_habito.sql), usar la vieja
+    if(e && /semana_gym/.test(e.message||""))
+      ({error:e} = await sb.from("pastanaga_semanas").upsert({user_id: uid, lunes, roney_tarde: gym}));
     if(e){ error = "No se guardó: " + e.message; render(); return; }
-    datos.semanas[lunes] = tarde;
+    datos.semanas[lunes] = gym;
     sugeridoPara = null;                 // que vuelva a proponer la rutina del día
     render();
   }
@@ -169,9 +171,9 @@
   // Qué rutina proponer hoy (o null si hoy no toca)
   window.habitoRutinaHoy = function(){
     if(!datos || datos.user !== uid) return null;
-    const tarde = datos.semanas[lunesDe(hoy())];
-    if(tarde === undefined) return null;
-    if(!tarde) return "D";
+    const gym = datos.semanas[lunesDe(hoy())];
+    if(gym === undefined) return null;
+    if(!gym) return "D";
     return RUTINA_GYM[diaSemana(hoy())] || null;
   };
 
