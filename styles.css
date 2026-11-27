@@ -247,3 +247,9 @@ button.hb-d{background:none;font-family:inherit;cursor:pointer;touch-action:mani
 .cm-t{flex:0 0 42px;font-weight:800;color:var(--carrot)}
 .cm-falta{background:var(--carrot-soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-top:10px}
 .cm-tienes{background:var(--green-soft);color:var(--green);border-radius:10px;padding:8px 10px;font-size:13px;font-weight:700;margin-top:10px}
+
+/* Fichas con 2 fotos (inicio y final): se alternan cada segundo para ver el movimiento */
+.ej-fotos{position:relative;border-radius:14px;overflow:hidden;background:#f2efe9;aspect-ratio:850/567}
+.ej-fotos img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ej-fotos img:last-child{animation:ej-alterna 2s steps(1) infinite}
+@keyframes ej-alterna{0%{opacity:0}50%{opacity:1}}
