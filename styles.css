@@ -207,3 +207,17 @@
 .hb-link{background:none;border:0;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;text-decoration:underline;margin-top:8px;padding:0}
 button.hb-d{background:none;font-family:inherit;cursor:pointer;touch-action:manipulation}
 .hb-d.ver{outline:3px solid var(--carrot);outline-offset:1px}
+
+/* ===== Mi barriga (medidas.js) ===== */
+.md h2{margin:0}
+.md-toca{border:2px dashed var(--carrot)}
+.md-hero{font-size:34px;font-weight:800;line-height:1}
+.md-baja{color:var(--green)}
+.md-graf{width:100%;height:auto;display:block;margin-top:4px}
+.md-rej{stroke:var(--line);stroke-width:1}
+.md-eje{fill:var(--muted);font-size:11px;font-weight:600}
+.md-linea{fill:none;stroke:var(--carrot);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.md-punto{fill:var(--carrot);stroke:var(--card);stroke-width:2}
+.md-punto.sel{fill:var(--ink)}
+.md-zona{fill:transparent;cursor:pointer}
+.md-info{margin-top:2px;font-size:13px}

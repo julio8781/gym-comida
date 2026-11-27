@@ -1412,6 +1412,8 @@ function renderGym(){
 
   ${window.habitoHTML ? habitoHTML() : ""}
 
+  ${mio && window.medidasHTML ? medidasHTML() : ""}
+
   ${mio && !(rut.A||[]).includes("calentamiento") ? `
   <div class="card" style="border:2px dashed var(--carrot)">
     <p style="font-weight:800">🔥 Rutina nueva para perder barriga</p>
@@ -1467,6 +1469,7 @@ function renderGym(){
 
   wireSelectorTema();
   if(window.habitoWire) habitoWire();
+  if(window.medidasWire) medidasWire();
   document.getElementById("btn-ajustes").onclick = renderAjustes;
   document.getElementById("g-prev").onclick = async ()=>{ fechaGym = addDias(fechaGym,-1); await cargarGymDia(); render(); };
   const gn = document.getElementById("g-next");

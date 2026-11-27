@@ -104,7 +104,11 @@ export function diasDe(filas, lunes, tipo) {
   return previas.length ? [...previas[0].dias].sort((a, b) => a - b) : DIAS_DEF[tipo];
 }
 
-export function avisoPara({ hora, diaSemana, hoy }, semana, sesiones, nombres, dias) {
+export function avisoPara({ hora, diaSemana, hoy }, semana, sesiones, nombres, dias, medidaReciente = true) {
+  // Domingo por la mañana: medir la cintura (si no lo ha hecho en los últimos 6 días)
+  if (diaSemana === 6 && hora === "11:00" && !medidaReciente)
+    return { titulo: "📏 Toca medir la cintura", cuerpo: "10 segundos con la cinta y ves si baja la barriga.", tag: "gym-medidas" };
+
   // semana: true (gym) | false (casa) | undefined (sin elegir)
   const fueHoy = sesiones.includes(hoy);
   const n = sesiones.length;
@@ -143,9 +147,10 @@ async function avisosGym(env, fecha) {
   const usuarios = [...new Set(todas.map(s => s.user_id))];
   if (!usuarios.length) return [];
 
-  const [gyms, perfiles] = await Promise.all([
+  const [gyms, perfiles, medidas] = await Promise.all([
     sbGet(env, "pastanaga_gym?select=user_id,fecha,dia,hechos,registro&fecha=gte." + lunes + "&fecha=lte." + ahora.hoy),
     sbGet(env, "pastanaga_perfiles?select=user_id,rutina"),
+    sbGet(env, "pastanaga_medidas?select=user_id&fecha=gte." + addDias(ahora.hoy, -6)),
   ]);
 
   const enviados = [];
@@ -156,7 +161,8 @@ async function avisosGym(env, fecha) {
     const nombres = perfiles.find(p => p.user_id === u)?.rutina?.nombres || {};
     const tipo = semana ? "gym" : "casa";
     const dias = diasDe(todas.filter(s => s.user_id === u), lunes, tipo);
-    const aviso = avisoPara(ahora, semana, sesiones, nombres, dias);
+    const medidaReciente = medidas.some(m => m.user_id === u);
+    const aviso = avisoPara(ahora, semana, sesiones, nombres, dias, medidaReciente);
     if (!aviso) continue;
     console.log("Aviso gym", ahora.hoy, ahora.hora, u, aviso.titulo);
     await avisarUsuario(env, u, aviso.titulo, aviso.cuerpo, aviso.tag);
