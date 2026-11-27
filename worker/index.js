@@ -171,9 +171,84 @@ async function avisosGym(env, fecha) {
   return enviados;
 }
 
+/* ============================================================
+   RESUMEN PARA SOFI (GET /sofi, cabecera X-Sofi-Clave = secreto SOFI_CLAVE)
+   Solo lectura: lo de hoy, la semana, la racha, las calorías y el peso de
+   cada persona de la app. Misma lógica que habito.js y medidas.js.
+============================================================ */
+const ROTACION_NOMBRES = { A: "Full body 1", B: "Full body 2", C: "Cardio y brazos", D: "En casa" };
+
+function resumenGym(filas, sesiones, ahora, nombres) {
+  const semanaDe = lunes => {
+    const fila = filas.find(f => f.lunes === lunes);
+    const gym = fila ? (fila.semana_gym ?? fila.roney_tarde) : undefined;
+    const tipo = gym ? "gym" : "casa";
+    const dias = diasDe(filas, lunes, tipo);
+    let n = 0;
+    for (let i = 0; i < 7; i++) if (sesiones.has(addDias(lunes, i))) n++;
+    const minimo = Math.max(1, Math.min(MINIMO[tipo], dias.length));
+    return { gym, tipo, dias, n, minimo, cumplida: n >= minimo };
+  };
+  const lunes = addDias(ahora.hoy, -ahora.diaSemana);
+  const w = semanaDe(lunes);
+  // racha de semanas cumplidas (la de ahora suma si ya está cumplida, si no no rompe)
+  let racha = w.cumplida ? 1 : 0, l = addDias(lunes, -7);
+  for (let i = 0; i < 104 && semanaDe(l).cumplida; i++) { racha++; l = addDias(l, -7); }
+  let rutina = null;
+  if (w.gym !== undefined && w.dias.includes(ahora.diaSemana))
+    rutina = w.tipo === "casa" ? "D" : ROTACION[w.dias.indexOf(ahora.diaSemana) % ROTACION.length];
+  return {
+    semana_elegida: w.gym !== undefined,
+    tipo: w.tipo, dias: w.dias, hechas: w.n, minimo: w.minimo, cumplida: w.cumplida, racha,
+    hoy: { toca: !!rutina, rutina: rutina ? (nombres[rutina] || ROTACION_NOMBRES[rutina]) : null, ya_fue: sesiones.has(ahora.hoy) },
+  };
+}
+
+function resumenMedida(ms, k) {
+  const s = ms.filter(m => m[k] !== null && m[k] !== undefined).map(m => ({ fecha: m.fecha, v: Number(m[k]) }));
+  if (!s.length) return null;
+  const ult = s[s.length - 1];
+  return { ultimo: ult.v, fecha: ult.fecha, desde: s[0].fecha, cambio: Math.round((ult.v - s[0].v) * 10) / 10, medidas: s.length };
+}
+
+async function resumenParaSofi(env) {
+  const ahora = ahoraMadrid();
+  const hace = addDias(ahora.hoy, -7 * 105);
+  const [perfiles, semanas, gyms, comidas, medidas] = await Promise.all([
+    sbGet(env, "pastanaga_perfiles?select=user_id,nombre,objetivo,peso,rutina"),
+    sbGet(env, "pastanaga_semanas?select=*"),
+    sbGet(env, "pastanaga_gym?select=user_id,fecha,dia,hechos,registro&fecha=gte." + hace),
+    sbGet(env, "pastanaga_comidas?select=user_id,kcal,proteina,borrada&fecha=eq." + ahora.hoy),
+    sbGet(env, "pastanaga_medidas?select=user_id,fecha,cintura,peso&order=fecha"),
+  ]);
+  const personas = perfiles.map(p => {
+    const u = p.user_id;
+    const sesiones = new Set(gyms.filter(g => g.user_id === u && fueAlGym(g)).map(g => g.fecha));
+    const hoyCom = comidas.filter(c => c.user_id === u && !c.borrada);
+    const kcal = Math.round(hoyCom.reduce((a, c) => a + (c.kcal || 0), 0));
+    const prot = Math.round(hoyCom.reduce((a, c) => a + (c.proteina || 0), 0));
+    const protObj = Math.round((p.peso || 0) * 1.6);
+    const ms = medidas.filter(m => m.user_id === u);
+    return {
+      nombre: p.nombre,
+      gym: resumenGym(semanas.filter(s => s.user_id === u), sesiones, ahora, p.rutina?.nombres || {}),
+      comida: { objetivo: p.objetivo || 0, comido: kcal, quedan: Math.max(0, (p.objetivo || 0) - kcal), apuntadas: hoyCom.length,
+                proteina: { objetivo: protObj, comido: prot, quedan: Math.max(0, protObj - prot) } },
+      peso: resumenMedida(ms, "peso"),
+      cintura: resumenMedida(ms, "cintura"),
+    };
+  });
+  return { hoy: ahora.hoy, personas };
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
+    if (request.method === "GET" && new URL(request.url).pathname === "/sofi") {
+      if (!env.SOFI_CLAVE || request.headers.get("X-Sofi-Clave") !== env.SOFI_CLAVE) return json({ error: "clave" }, 401);
+      try { return json(await resumenParaSofi(env)); }
+      catch (e) { console.log("Error resumen Sofi:", String(e)); return json({ error: String(e) }, 500); }
+    }
     if (request.method !== "POST") return new Response("Worker de Pastanaga vivo 🥕", { headers: CORS });
     try {
       // Antes cualquiera podía mandar avisos a cualquiera; ahora hay que haber iniciado sesión
