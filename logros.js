@@ -166,6 +166,7 @@
   }
 
   // ---------- Datos ----------
+  const DESDE = "2026-11-27";   // el día que Julio se apuntó (lo anterior no cuenta)
   let datos = null, cargando = false;   // {user, sesiones, ...calcular()}
   let sobreNuevo = null, coleccionAbierta = false;
 
@@ -173,7 +174,8 @@
     if(cargando) return;
     cargando = true;
     const {data} = await sb.from("pastanaga_gym").select("fecha,dia,hechos,registro").eq("user_id", user).order("fecha");
-    const sesiones = data || [];
+    // Solo cuenta desde que se apuntaron a este gym: lo de antes eran pruebas
+    const sesiones = (data || []).filter(g => g.fecha >= DESDE);
     datos = Object.assign({user, sesiones}, calcular(user, sesiones));
     cargando = false;
     if(vista === "gym") render();
