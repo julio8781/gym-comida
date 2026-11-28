@@ -514,11 +514,15 @@ async function cargarGymDia(){
   else sesionG = null;
 }
 // ¿entrenó hoy y completó? para el ánimo de la zanahoria
+// Terminada = todos hechos o saltados, y al menos uno hecho (saltarse uno no la deja a medias)
+const sesionTerminada = r => !!(r && r.ejercicios && r.ejercicios.length
+  && r.ejercicios.every(x=>x.hecho||x.saltado) && r.ejercicios.some(x=>x.hecho));
+let verEjercicios = false;   // con la sesión terminada la lista se recoge
 async function entrenoHoy(user){
   const {data:g} = await sb.from("pastanaga_gym").select("registro,hechos,dia")
     .eq("user_id", user).eq("fecha", hoy()).maybeSingle();
   if(!g) return false;
-  if(g.registro?.ejercicios?.length) return g.registro.ejercicios.every(x=>x.hecho);
+  if(g.registro?.ejercicios?.length) return sesionTerminada(g.registro);
   const n = Object.entries(g.hechos||{}).filter(([k,v])=>v && k.startsWith(g.dia+"-")).length;
   return n>=5;
 }
@@ -582,6 +586,18 @@ function cronoWire(){
     };
     tic(); crono.t = setInterval(tic, 250);
   });
+}
+// Tras marcar, desmarcar o saltar: guarda y, si la sesión acaba de terminarse, lo celebra (logros.js)
+async function alCambiarEjercicio(){
+  const r = sesionG.registro;
+  const recien = sesionTerminada(r) && !r.fin;
+  if(recien){ r.fin = new Date().toISOString(); verEjercicios = false; }
+  await guardarSesion();
+  if(window.habitoRefrescar) habitoRefrescar();
+  window._entrenoHoy = fechaGym===hoy() ? sesionTerminada(r) : window._entrenoHoy;
+  if(recien && window.finAlTerminar) await finAlTerminar();
+  if(window.logrosRefrescar) logrosRefrescar();
+  render();
 }
 function crearRegistro(dia){
   const ids = (rutinaDe(perfil)[dia]||[]).filter(id=>BIB[id]);
@@ -1482,7 +1498,8 @@ function renderGym(){
   }
 
   const reg = sesionG?.registro;
-  const done = reg ? reg.ejercicios.filter(x=>x.hecho).length : 0;
+  const done = reg ? reg.ejercicios.filter(x=>x.hecho||x.saltado).length : 0;
+  const terminada = sesionTerminada(reg);
 
   // Hábito (habito.js): hoy propone la rutina que toca según la semana
   if(mio && esHoyG && !reg && window.habitoSugerir){ const s = habitoSugerir(); if(s) diaGym = s; }
@@ -1529,6 +1546,8 @@ function renderGym(){
 
   ${!reg && !mio ? '<div class="card"><p class="muted">'+esc(parejaPerfil?parejaPerfil.nombre:"Tu pareja")+' no entrenó este día 😴</p></div>' : ""}
 
+  ${reg && terminada && window.finHTML ? finHTML(mio) : ""}
+
   ${reg ? `
   <div class="card" style="padding-bottom:10px">
     <div style="display:flex;justify-content:space-between;align-items:center">
@@ -1541,13 +1560,16 @@ function renderGym(){
     </div>
     ${done===0 ? '<button id="g-quitar" class="hb-link">✕ no voy a entrenar este día (quitar la sesión)</button>' : ""}` : ""}
   </div>
-  ${reg.ejercicios.map((x,i)=>{
+  ${terminada ? '<button class="hb-link" id="g-ver-ej" style="margin:0 0 10px">'+(verEjercicios?"▴ Recoger los ejercicios":"▾ Ver los ejercicios ("+reg.ejercicios.length+")")+'</button>' : ""}
+  ${terminada && !verEjercicios ? "" : reg.ejercicios.map((x,i)=>{
     const e = BIB[x.id] || {n:x.id, s:"", p:1};
-    return `<div class="ej ${x.hecho?"done":""}">
-      ${mio?'<button class="chk" data-i="'+i+'">'+(x.hecho?"✓":"")+'</button>':'<div class="chk" style="display:flex;align-items:center;justify-content:center;'+(x.hecho?"background:var(--green);":"")+'">'+(x.hecho?"✓":"")+'</div>'}
+    const marca = x.hecho ? "✓" : (x.saltado ? "⏭" : "");
+    return `<div class="ej ${x.hecho?"done":""} ${x.saltado?"saltado":""}">
+      ${mio?'<button class="chk" data-i="'+i+'">'+marca+'</button>':'<div class="chk" style="display:flex;align-items:center;justify-content:center;'+(x.hecho?"background:var(--green);":"")+'">'+marca+'</div>'}
       <div class="body" style="cursor:pointer" data-ficha="${x.id}">
         <p class="nm">${e.n} 📖</p>
-        ${seriesHTML(e, x, i, mio)}
+        ${x.saltado ? '<p class="muted">⏭ Saltado hoy'+(mio?' · <button class="saltar" data-desaltar="'+i+'">deshacer</button>':"")+'</p>' : seriesHTML(e, x, i, mio)}
+        ${mio && !x.hecho && !x.saltado ? '<button class="saltar" data-saltar="'+i+'">⏭ saltar hoy</button>' : ""}
       </div>
       ${!e.p && mio && segundosDe(e.s).length ? cronoHTML(i, e.s) : ""}
       ${e.p ? (mio
@@ -1555,12 +1577,12 @@ function renderGym(){
         : '<div style="display:flex;align-items:center;padding-right:12px;font-weight:800;font-size:14px">'+(x.kg?esc(x.kg)+" kg":"")+'</div>') : ""}
     </div>`;
   }).join("")}
-  ${done===reg.ejercicios.length && reg.ejercicios.length ? '<div class="ok">💪 Sesión completada'+(mio?", máquina":"")+'</div>' : ""}
   ${mio?'<p class="muted" style="margin-top:8px">Toca el nombre de un ejercicio para ver cómo se hace 📖 · los kg quedan registrados en este día</p>':""}
   ` : ""}
 
   ${window.cardioHTML ? cardioHTML(mio) : ""}
 
+  ${window.coleccionBotonHTML ? coleccionBotonHTML() : ""}
   ${mio?'<button class="btn sec sm" id="g-editar" style="margin-top:10px">✏️ Editar mi rutina</button>':""}
   ${mio && window.bajaHTML ? bajaHTML() : ""}`;
 
@@ -1569,6 +1591,7 @@ function renderGym(){
   if(window.medidasWire) medidasWire();
   if(window.bajaWire) bajaWire();
   if(window.cardioWire) cardioWire();
+  if(window.finWire) finWire();
   document.getElementById("btn-ajustes").onclick = renderAjustes;
   document.getElementById("g-prev").onclick = async ()=>{ fechaGym = addDias(fechaGym,-1); await cargarGymDia(); render(); };
   const gn = document.getElementById("g-next");
@@ -1583,6 +1606,7 @@ function renderGym(){
   const ge = document.getElementById("g-empezar");
   if(ge) ge.onclick = async ()=>{
     sesionG = {dia:diaGym, registro: crearRegistro(diaGym)};
+    sesionG.registro.inicio = new Date().toISOString();
     await guardarSesion(); render();
   };
   // Cambiar de rutina con la sesión ya empezada (antes había que rehacerla a ciegas)
@@ -1615,12 +1639,17 @@ function renderGym(){
   };
   document.querySelectorAll(".chk").forEach(b=>{ if(b.tagName==="BUTTON") b.onclick = async ()=>{
     const x = sesionG.registro.ejercicios[parseInt(b.dataset.i)];
-    x.hecho = !x.hecho;
-    await guardarSesion();
-    if(window.habitoRefrescar) habitoRefrescar();
-    window._entrenoHoy = fechaGym===hoy() ? sesionG.registro.ejercicios.every(y=>y.hecho) : window._entrenoHoy;
-    render();
+    if(x.saltado){ x.saltado = false; x.hecho = true; } else x.hecho = !x.hecho;
+    await alCambiarEjercicio();
   };});
+  document.querySelectorAll("[data-saltar],[data-desaltar]").forEach(b=>b.onclick = async ev=>{
+    ev.stopPropagation();
+    const x = sesionG.registro.ejercicios[parseInt(b.dataset.saltar ?? b.dataset.desaltar)];
+    x.saltado = b.dataset.saltar !== undefined; x.hecho = false;
+    await alCambiarEjercicio();
+  });
+  const gve = document.getElementById("g-ver-ej");
+  if(gve) gve.onclick = ()=>{ verEjercicios = !verEjercicios; render(); };
   cronoWire();
   document.querySelectorAll(".ser").forEach(inp=>{
     inp.onclick = ev=>ev.stopPropagation();   // que tocar la casilla no abra la ficha

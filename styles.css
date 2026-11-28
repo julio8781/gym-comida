@@ -277,3 +277,46 @@ button.hb-d{background:none;font-family:inherit;cursor:pointer;touch-action:mani
 .ej .crono button{min-width:44px;height:36px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-weight:800;font-size:14px;cursor:pointer;font-variant-numeric:tabular-nums}
 .ej .crono button.on{background:var(--carrot);border-color:var(--carrot);color:#fff}
 .ej .crono button.fin{background:var(--green);border-color:var(--green);color:#fff}
+
+/* ---------- Saltar ejercicio ---------- */
+.ej.saltado{opacity:.6}
+.ej.saltado .chk{background:var(--line)}
+.ej .saltar{background:none;border:0;padding:4px 0 0;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;text-decoration:underline}
+
+/* ---------- Fin de sesión, colección y logros (logros.js) ---------- */
+.lg-fin{border:2px solid var(--green);background:linear-gradient(180deg,var(--green-soft),var(--card) 60%)}
+.lg-titulo{font-size:20px;font-weight:900}
+.lg-datos{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:12px 0}
+.lg-datos div{background:var(--card);border:2px solid var(--line);border-radius:12px;padding:8px 10px}
+.lg-datos b{display:block;font-size:18px}
+.lg-datos span{font-size:12px;color:var(--muted);font-weight:700}
+.lg-cmp{margin:4px 0 8px}
+.lg-cmp p{font-size:14px;font-weight:700}
+.lg-cmp .sube{color:var(--green)}
+.lg-nuevos{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.lg-nuevos span{background:var(--gold);color:#fff;border-radius:999px;padding:4px 10px;font-size:13px;font-weight:800}
+.lg-sobre{display:flex;gap:14px;align-items:center;margin-top:10px}
+.lg-sobre-txt{flex:1}
+.lg-prox{margin-top:12px;font-size:14px}
+.lg-carta{width:104px;min-height:138px;border-radius:14px;padding:10px 6px;text-align:center;border:3px solid #a8a29e;background:var(--card);display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0}
+.lg-carta .lg-ico{font-size:42px;line-height:1.2}
+.lg-carta .lg-n{font-size:12px;font-weight:800;line-height:1.15}
+.lg-carta .lg-r{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+.lg-carta .lg-frase{font-size:10px;color:var(--muted);line-height:1.2;margin-top:2px}
+.lg-carta .lg-repe{font-size:10px;font-weight:800;color:var(--carrot)}
+.lg-carta.r-rara{border-color:#3b82f6;background:linear-gradient(160deg,#dbeafe33,var(--card))}
+.lg-carta.r-rara .lg-r{color:#3b82f6}
+.lg-carta.r-epica{border-color:#a855f7;background:linear-gradient(160deg,#f3e8ff55,var(--card))}
+.lg-carta.r-epica .lg-r{color:#a855f7}
+.lg-carta.r-legendaria{border-color:#f59e0b;background:linear-gradient(160deg,#fef3c7,var(--card));box-shadow:0 0 14px #f59e0b88}
+.lg-carta.r-legendaria .lg-r{color:#d97706}
+.lg-carta.lg-falta{opacity:.35;justify-content:center}
+.lg-carta.gira{animation:lg-gira .9s ease-out}
+@keyframes lg-gira{0%{transform:rotateY(90deg) scale(.6)}60%{transform:rotateY(-12deg) scale(1.08)}100%{transform:none}}
+.lg-col{max-height:88vh;overflow:auto}
+.lg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;justify-items:center}
+.lg-grid .lg-carta{width:100%;min-height:120px}
+.lg-logros{display:flex;flex-direction:column;gap:6px}
+.lg-logro{display:flex;gap:10px;align-items:center;padding:8px;border-radius:12px;border:2px solid var(--line);opacity:.55}
+.lg-logro.si{opacity:1;border-color:var(--gold)}
+.lg-logro-ico{font-size:24px;width:32px;text-align:center}
