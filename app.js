@@ -1486,6 +1486,8 @@ function renderGym(){
   ${mio?'<p class="muted" style="margin-top:8px">Toca el nombre de un ejercicio para ver cómo se hace 📖 · los kg quedan registrados en este día</p>':""}
   ` : ""}
 
+  ${window.cardioHTML ? cardioHTML(mio) : ""}
+
   ${mio?'<button class="btn sec sm" id="g-editar" style="margin-top:10px">✏️ Editar mi rutina</button>':""}
   ${mio && window.bajaHTML ? bajaHTML() : ""}`;
 
@@ -1493,6 +1495,7 @@ function renderGym(){
   if(window.habitoWire) habitoWire();
   if(window.medidasWire) medidasWire();
   if(window.bajaWire) bajaWire();
+  if(window.cardioWire) cardioWire();
   document.getElementById("btn-ajustes").onclick = renderAjustes;
   document.getElementById("g-prev").onclick = async ()=>{ fechaGym = addDias(fechaGym,-1); await cargarGymDia(); render(); };
   const gn = document.getElementById("g-next");
