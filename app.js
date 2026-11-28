@@ -37,7 +37,6 @@ let sesionG = null;        // sesión registrada de ese día: {dia, registro:{ej
 let modoEditar = false;    // editando la rutina plantilla
 let bibAbierta = false;    // biblioteca de ejercicios abierta
 let obTmp = {sexo:"h", ritmo:"400"};
-let puntosCache = null;
 
 /* ===== TEMA (localStorage) ===== */
 const TEMAS = ["claro","oscuro","jugueton"];
@@ -682,7 +681,7 @@ function render(){
   else if(vista==="gym") renderGym();
   else if(vista==="cuentas"){ if(window.renderCuentas) renderCuentas(); }
   else if(vista==="comidas"){ if(window.renderComidas) renderComidas(); }
-  else renderPuntos();
+  else renderDiario();
 }
 
 // Botoncito de selector de tema (se inyecta en las topbars)
@@ -1043,7 +1042,6 @@ function renderDiario(){
       carbs: e2.carbs, grasa: e2.grasa, foto_url: e2.foto_url,
     });
     if(error){ errorMsg = "No se pudo copiar: "+error.message; render(); return; }
-    puntosCache = null;
     b.textContent = "✓ Añadido a tu diario";
   });
 
@@ -1130,7 +1128,7 @@ function renderDiario(){
         const nombreComida = (pendiente.alimentos||[]).map(a=>a.nombre).slice(0,2).join(", ");
         avisar(parejaPerfil.user_id, "💛 "+perfil.nombre+" ha comido", nombreComida || "Ha registrado una comida");
       }
-      pendiente=null; fotoPend=null; puntosCache=null; render();
+      pendiente=null; fotoPend=null; render();
 
     };
     document.getElementById("btn-add").onclick = ()=>confirmarComida(false);
@@ -1179,7 +1177,7 @@ function renderDiario(){
     await sb.from("pastanaga_compartidas").delete().eq("id", c.id);
     compartidasPend = compartidasPend.filter(x=>x.id!==c.id);
     if(c.fecha===fechaSel) entradas.push(data);
-    puntosCache=null; render();
+    render();
   });
   document.querySelectorAll(".ac-no").forEach(b=>b.onclick=async ()=>{
     const id = parseInt(b.dataset.id);
@@ -1191,7 +1189,7 @@ function renderDiario(){
     const id = parseInt(b.dataset.id);
     const ent = entradas.find(x=>x.id===id);
     const {error} = await sb.from("pastanaga_comidas").update({borrada:true}).eq("id",id);
-    if(!error){ if(ent) ent.borrada = true; entAbierta=null; puntosCache=null; await cargarSemana(); }
+    if(!error){ if(ent) ent.borrada = true; entAbierta=null; await cargarSemana(); }
     else errorMsg = "No se pudo borrar: "+error.message;
     render();
   });
@@ -1199,7 +1197,7 @@ function renderDiario(){
     const id = parseInt(b.dataset.id);
     const ent = entradas.find(x=>x.id===id);
     const {error} = await sb.from("pastanaga_comidas").update({borrada:false}).eq("id",id);
-    if(!error){ if(ent) ent.borrada = false; puntosCache=null; await cargarSemana(); }
+    if(!error){ if(ent) ent.borrada = false; await cargarSemana(); }
     else errorMsg = "No se pudo restaurar: "+error.message;
     render();
   });
@@ -1557,7 +1555,7 @@ function renderGym(){
         : '<div style="display:flex;align-items:center;padding-right:12px;font-weight:800;font-size:14px">'+(x.kg?esc(x.kg)+" kg":"")+'</div>') : ""}
     </div>`;
   }).join("")}
-  ${done===reg.ejercicios.length && reg.ejercicios.length ? '<div class="ok">💪 Sesión completada'+(mio?", máquina":"")+' (+15 pts)</div>' : ""}
+  ${done===reg.ejercicios.length && reg.ejercicios.length ? '<div class="ok">💪 Sesión completada'+(mio?", máquina":"")+'</div>' : ""}
   ${mio?'<p class="muted" style="margin-top:8px">Toca el nombre de un ejercicio para ver cómo se hace 📖 · los kg quedan registrados en este día</p>':""}
   ` : ""}
 
@@ -1585,7 +1583,7 @@ function renderGym(){
   const ge = document.getElementById("g-empezar");
   if(ge) ge.onclick = async ()=>{
     sesionG = {dia:diaGym, registro: crearRegistro(diaGym)};
-    await guardarSesion(); puntosCache=null; render();
+    await guardarSesion(); render();
   };
   // Cambiar de rutina con la sesión ya empezada (antes había que rehacerla a ciegas)
   document.querySelectorAll("[data-cambiar]").forEach(b=>b.onclick = async ()=>{
@@ -1595,7 +1593,7 @@ function renderGym(){
     if(hechos && !confirm("¿Cambiar a "+nombreRutina(perfil,d)+"? Se pierden los "+hechos+" ejercicios marcados de este día.")) return;
     diaGym = d;
     sesionG = {dia:d, registro: crearRegistro(d)};
-    await guardarSesion(); puntosCache=null;
+    await guardarSesion();
     if(window.habitoRefrescar) habitoRefrescar();
     render();
   });
@@ -1605,7 +1603,7 @@ function renderGym(){
     // .select() devuelve lo borrado: si Supabase no deja borrar, no da error, solo 0 filas
     const {data, error} = await sb.from("pastanaga_gym").delete().eq("user_id", uid).eq("fecha", fechaGym).select();
     if(error || !data || !data.length){ errorMsg = "No se pudo quitar la sesión"+(error?": "+error.message:" (Supabase no deja borrar)"); render(); return; }
-    sesionG = null; puntosCache=null;
+    sesionG = null;
     if(window.habitoRefrescar) habitoRefrescar();
     render();
   };
@@ -1613,12 +1611,12 @@ function renderGym(){
   if(gr) gr.onclick = async ()=>{
     if(!confirm("¿Rehacer esta sesión con tu rutina actual? Se pierden los checks y kg de este día.")) return;
     sesionG = {dia:sesionG.dia, registro: crearRegistro(sesionG.dia)};
-    await guardarSesion(); puntosCache=null; render();
+    await guardarSesion(); render();
   };
   document.querySelectorAll(".chk").forEach(b=>{ if(b.tagName==="BUTTON") b.onclick = async ()=>{
     const x = sesionG.registro.ejercicios[parseInt(b.dataset.i)];
     x.hecho = !x.hecho;
-    await guardarSesion(); puntosCache=null;
+    await guardarSesion();
     if(window.habitoRefrescar) habitoRefrescar();
     window._entrenoHoy = fechaGym===hoy() ? sesionG.registro.ejercicios.every(y=>y.hecho) : window._entrenoHoy;
     render();
@@ -1671,89 +1669,6 @@ function renderFicha(id){
   document.body.appendChild(ov);
   ov.onclick = ev => { if(ev.target===ov) ov.remove(); };
   ov.querySelector("#fi-x").onclick = ()=>ov.remove();
-}
-
-async function calcularPuntos(){
-  const [{data:ps},{data:coms},{data:gyms}] = await Promise.all([
-    sb.from("pastanaga_perfiles").select("user_id,nombre,peso,objetivo"),
-    sb.from("pastanaga_comidas").select("user_id,fecha,kcal,proteina,borrada"),
-    sb.from("pastanaga_gym").select("user_id,fecha,dia,hechos,registro"),
-  ]);
-  const H = hoy();
-  return (ps||[]).map(p=>{
-    const porDia = {};
-    (coms||[]).filter(c=>c.user_id===p.user_id && !c.borrada).forEach(c=>{
-      porDia[c.fecha] = porDia[c.fecha] || {kcal:0,prot:0};
-      porDia[c.fecha].kcal += c.kcal; porDia[c.fecha].prot += c.proteina||0;
-    });
-    let pts = 0, diasOk = 0, diasProt = 0;
-    const diasReg = Object.keys(porDia).length;
-    pts += diasReg * 10;
-    const protT = protObjetivo(p);
-    Object.entries(porDia).forEach(([f,v])=>{
-      if(f < H){
-        if(v.kcal > 0 && v.kcal <= p.objetivo){ pts += 25; diasOk++; }
-        if(v.prot >= protT){ pts += 15; diasProt++; }
-      }
-    });
-    let sesiones = 0;
-    (gyms||[]).filter(g=>g.user_id===p.user_id).forEach(g=>{
-      let completo = false;
-      if(g.registro?.ejercicios?.length) completo = g.registro.ejercicios.every(x=>x.hecho);
-      else {
-        const n = Object.entries(g.hechos||{}).filter(([k,v])=>v && k.startsWith(g.dia+"-")).length;
-        completo = n >= 5;
-      }
-      if(completo){ pts += 15; sesiones++; }
-    });
-    let racha = 0, f = porDia[H] ? H : addDias(H,-1);
-    while(porDia[f]){ racha++; f = addDias(f,-1); }
-    return {...p, pts, diasReg, diasOk, diasProt, sesiones, racha};
-  }).sort((a,b)=>b.pts-a.pts);
-}
-
-async function renderPuntos(){
-  app.innerHTML = `<div class="topbar"><h1>Puntos 🏆</h1><div style="display:flex;align-items:center;gap:8px">${htmlSelectorTema()}<button class="gear" id="btn-ajustes">⚙️</button></div></div><p class="muted">Calculando…</p>`;
-  wireSelectorTema();
-  document.getElementById("btn-ajustes").onclick = renderAjustes;
-  if(!puntosCache) puntosCache = await calcularPuntos();
-  if(vista!=="puntos") return;
-  const lista = puntosCache;
-  app.innerHTML = `
-  <div class="topbar"><h1>Puntos 🏆</h1><div style="display:flex;align-items:center;gap:8px">${htmlSelectorTema()}<button class="gear" id="btn-ajustes">⚙️</button></div></div>
-  ${lista.map((p,i)=>`
-    <div class="pcard ${i===0&&lista.length>1?"lider":""}">
-      <div class="medal">${i===0 ? (lista.length>1?"🥇":"🏅") : "🥈"}</div>
-      <div>
-        <p style="font-weight:800;font-size:17px">${esc(p.nombre)}${p.user_id===uid?" (tú)":""}</p>
-        <div style="margin-top:3px">
-          <span class="stat">🔥 racha ${p.racha}</span>
-          <span class="stat">✅ ${p.diasOk} días en objetivo</span>
-          <span class="stat">🍗 ${p.diasProt} de proteína</span>
-          <span class="stat">🏋️ ${p.sesiones} sesiones</span>
-        </div>
-      </div>
-      <div class="pts">${p.pts}<small>puntos</small></div>
-    </div>`).join("")}
-  ${lista.length<2 ? '<p class="muted" style="margin-bottom:12px">Cuando '+(parejaPerfil?esc(parejaPerfil.nombre):"tu pareja")+' registre cosas, aparecerá aquí el duelo.</p>' : ""}
-  <div class="card">
-    <h2>Cómo se ganan</h2>
-    <p class="pt">📔 <b>+10</b> por cada día que registras comidas</p>
-    <p class="pt">🎯 <b>+25</b> por cerrar el día dentro del objetivo</p>
-    <p class="pt">🍗 <b>+15</b> por llegar a tu proteína diaria</p>
-    <p class="pt">🏋️ <b>+15</b> por sesión de gym completada</p>
-    <p class="muted" style="margin-top:6px">Los bonus de objetivo y proteína se dan al cerrar el día (hoy aún no cuenta).</p>
-  </div>
-  <div class="card">
-    <h2>Premios 💛</h2>
-    <p class="pt"><b>150 pts</b> · el otro prepara el desayuno del finde</p>
-    <p class="pt"><b>375 pts</b> · masaje de 20 minutos</p>
-    <p class="pt"><b>750 pts</b> · cena donde elija el ganador</p>
-    <p class="pt"><b>1500 pts</b> · día de plan sorpresa</p>
-    <p class="muted" style="margin-top:6px">Negociables a propuestas mas creativas 😄</p>
-  </div>`;
-  wireSelectorTema();
-  document.getElementById("btn-ajustes").onclick = renderAjustes;
 }
 
 function renderAjustes(){
@@ -1810,7 +1725,6 @@ function renderAjustes(){
     const {error} = await sb.from("pastanaga_perfiles").update(cambios).eq("user_id",uid);
     if(error){ alert("Error guardando: "+error.message); return; }
     Object.assign(perfil, cambios);
-    puntosCache=null;
     ov.remove(); render();
   };
 
