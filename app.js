@@ -658,10 +658,23 @@ nav.querySelectorAll("button").forEach(b=>b.onclick=async ()=>{
   render();
 });
 
+// Pantalla siempre encendida en la pestaña Gym (Wake Lock del navegador).
+// Android la suelta al salir de la app: al volver se pide otra vez.
+let candado = null;
+async function pantallaEncendida(si){
+  if(!("wakeLock" in navigator)) return;
+  if(si && !candado && document.visibilityState==="visible"){
+    try{ candado = await navigator.wakeLock.request("screen"); candado.addEventListener("release", ()=>{ candado = null; }); }
+    catch(e){ candado = null; }
+  }else if(!si && candado){ try{ await candado.release(); }catch(e){} candado = null; }
+}
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") pantallaEncendida(vista==="gym" && !!perfil); });
+
 function render(){
   if(!sb){ renderSinConfig(); return; }
   if(!uid){ renderLogin(); return; }
   if(!perfil){ renderOnboarding(); return; }
+  pantallaEncendida(vista==="gym");
   nav.classList.remove("hide");
   nav.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.v===vista));
   if(vista==="diario") renderDiario();
