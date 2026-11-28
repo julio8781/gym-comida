@@ -267,3 +267,7 @@ button.hb-d{background:none;font-family:inherit;cursor:pointer;touch-action:mani
 .cd .cd-campos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .cd .cd-campos label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}
 .cd .cd-campos input{width:100%;min-width:0;font-size:16px}
+
+/* Series editables en cada ejercicio */
+.ej .ser-fila{display:flex;align-items:center;gap:6px}
+.ej .ser{width:42px;padding:4px 4px;border:2px solid var(--line);border-radius:8px;font-size:14px;font-weight:800;text-align:center;background:var(--card);color:var(--ink)}

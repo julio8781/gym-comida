@@ -523,9 +523,25 @@ async function entrenoHoy(user){
   const n = Object.entries(g.hechos||{}).filter(([k,v])=>v && k.startsWith(g.dia+"-")).length;
   return n>=5;
 }
+// «3 × 10» → las series se pueden cambiar en cada ejercicio (Julio hace más de las de serie).
+// Se guardan en el ejercicio de ese día (x.series) y en perfil.pesos["series:"+id] para la próxima vez.
+const partirSeries = s => { const m = /^(\d+)\s*×\s*(.+)$/.exec(s||""); return m ? {n: m[1], resto: m[2]} : null; };
+function seriesDe(id){
+  const g = (perfil.pesos||{})["series:"+id];
+  if(g) return String(g);
+  const ps = partirSeries(BIB[id] && BIB[id].s);
+  return ps ? ps.n : "";
+}
+function seriesHTML(e, x, i, mio){
+  const ps = partirSeries(e.s);
+  if(!ps) return '<p class="muted">'+e.s+'</p>';
+  const n = x.series || ps.n;
+  if(!mio) return '<p class="muted">'+esc(n)+' × '+ps.resto+'</p>';
+  return '<p class="muted ser-fila"><input class="ser" type="number" inputmode="numeric" min="1" max="20" data-i="'+i+'" value="'+esc(n)+'" title="Series"> series × '+ps.resto+'</p>';
+}
 function crearRegistro(dia){
   const ids = (rutinaDe(perfil)[dia]||[]).filter(id=>BIB[id]);
-  return {ejercicios: ids.map(id=>({id, hecho:false, kg: String((perfil.pesos||{})[id] ?? (perfil.pesos||{})[BIB[id].n] ?? "")}))};
+  return {ejercicios: ids.map(id=>({id, hecho:false, series: seriesDe(id), kg: String((perfil.pesos||{})[id] ?? (perfil.pesos||{})[BIB[id].n] ?? "")}))};
 }
 async function guardarSesion(){
   const {error} = await sb.from("pastanaga_gym").upsert({
@@ -1475,7 +1491,7 @@ function renderGym(){
       ${mio?'<button class="chk" data-i="'+i+'">'+(x.hecho?"✓":"")+'</button>':'<div class="chk" style="display:flex;align-items:center;justify-content:center;'+(x.hecho?"background:var(--green);":"")+'">'+(x.hecho?"✓":"")+'</div>'}
       <div class="body" style="cursor:pointer" data-ficha="${x.id}">
         <p class="nm">${e.n} 📖</p>
-        <p class="muted">${e.s}</p>
+        ${seriesHTML(e, x, i, mio)}
       </div>
       ${e.p ? (mio
         ? '<input class="kg" type="number" inputmode="decimal" placeholder="kg" data-i="'+i+'" value="'+esc(x.kg||"")+'">'
@@ -1548,6 +1564,17 @@ function renderGym(){
     window._entrenoHoy = fechaGym===hoy() ? sesionG.registro.ejercicios.every(y=>y.hecho) : window._entrenoHoy;
     render();
   };});
+  document.querySelectorAll(".ser").forEach(inp=>{
+    inp.onclick = ev=>ev.stopPropagation();   // que tocar la casilla no abra la ficha
+    inp.onchange = async ()=>{
+      const n = parseInt(inp.value);
+      if(!n || n<1 || n>20){ inp.value = sesionG.registro.ejercicios[parseInt(inp.dataset.i)].series || ""; return; }
+      const x = sesionG.registro.ejercicios[parseInt(inp.dataset.i)];
+      x.series = String(n);
+      perfil.pesos = perfil.pesos||{}; perfil.pesos["series:"+x.id] = String(n);
+      await guardarSesion(); await guardarPesos();
+    };
+  });
   document.querySelectorAll(".kg").forEach(inp=>inp.onchange = async ()=>{
     const x = sesionG.registro.ejercicios[parseInt(inp.dataset.i)];
     x.kg = inp.value;
