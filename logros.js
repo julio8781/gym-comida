@@ -187,7 +187,11 @@
   window.logrosRefrescar = function(){ datos = null; };
 
   // ---------- Textos ----------
-  const fmt = (v, d=0) => Number(v).toLocaleString("es-ES", {maximumFractionDigits:d});
+  // En español el navegador no pone el punto en números de 4 cifras (5350): se pone a mano
+  const fmt = (v, d=0) => {
+    const [e, dec] = Number(v).toLocaleString("es-ES", {maximumFractionDigits:d, useGrouping:false}).split(",");
+    return e.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + (dec ? "," + dec : "");
+  };
   const OBJETOS = [[4000,"elefante","elefantes","🐘"],[1300,"coche","coches","🚗"],[400,"piano","pianos","🎹"],[80,"persona","personas","🧍"]];
   function equivale(kg){
     const o = OBJETOS.find(([p]) => kg >= p);
