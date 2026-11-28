@@ -539,6 +539,51 @@ function seriesHTML(e, x, i, mio){
   if(!mio) return '<p class="muted">'+esc(n)+' × '+ps.resto+'</p>';
   return '<p class="muted ser-fila"><input class="ser" type="number" inputmode="numeric" min="1" max="20" data-i="'+i+'" value="'+esc(n)+'" title="Series"> series × '+ps.resto+'</p>';
 }
+// Cuenta atrás para los ejercicios por tiempo («3 × 30-45 seg»: botones 30 y 45).
+// No vuelve a pintar la pantalla: solo cambia el texto del botón que cuenta.
+const segundosDe = s => { const m = /(\d+)(?:\s*-\s*(\d+))?\s*seg/.exec(s||""); return m ? [m[1], m[2]].filter(Boolean).map(Number) : []; };
+let crono = null;   // {i, seg, fin, t}
+function cronoHTML(i, s){
+  return '<div class="crono">'+segundosDe(s).map(n=>{
+    const va = crono && crono.i===i && crono.seg===n;
+    return '<button data-crono="'+n+'" data-i="'+i+'" class="'+(va?"on":"")+'">'+(va ? Math.max(0, Math.ceil((crono.fin-Date.now())/1000)) : n+'"')+'</button>';
+  }).join("")+'</div>';
+}
+function pitido(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    [0, .25, .5].forEach(t=>{
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(.3, ctx.currentTime+t); g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime+t+.2);
+      o.start(ctx.currentTime+t); o.stop(ctx.currentTime+t+.2);
+    });
+  }catch(e){}
+  if(navigator.vibrate) navigator.vibrate([300,120,300,120,300]);
+}
+function pararCrono(){ if(crono){ clearInterval(crono.t); crono = null; } }
+function cronoWire(){
+  document.querySelectorAll("[data-crono]").forEach(b=>b.onclick = ev=>{
+    ev.stopPropagation();
+    const i = parseInt(b.dataset.i), n = parseInt(b.dataset.crono);
+    const mismo = crono && crono.i===i && crono.seg===n;
+    pararCrono();
+    document.querySelectorAll("[data-crono]").forEach(x=>{ x.classList.remove("on","fin"); x.textContent = x.dataset.crono+'"'; });
+    if(mismo) return;   // tocar el que cuenta lo para
+    crono = {i, seg:n, fin: Date.now()+n*1000};
+    const btn = ()=>document.querySelector('[data-crono="'+n+'"][data-i="'+i+'"]');
+    const tic = ()=>{
+      const quedan = Math.ceil((crono.fin-Date.now())/1000), el = btn();
+      if(quedan <= 0){
+        pararCrono(); pitido();
+        if(el){ el.classList.remove("on"); el.classList.add("fin"); el.textContent = "✓"; setTimeout(()=>{ el.classList.remove("fin"); el.textContent = n+'"'; }, 2500); }
+        return;
+      }
+      if(el){ el.classList.add("on"); el.textContent = quedan; }
+    };
+    tic(); crono.t = setInterval(tic, 250);
+  });
+}
 function crearRegistro(dia){
   const ids = (rutinaDe(perfil)[dia]||[]).filter(id=>BIB[id]);
   return {ejercicios: ids.map(id=>({id, hecho:false, series: seriesDe(id), kg: String((perfil.pesos||{})[id] ?? (perfil.pesos||{})[BIB[id].n] ?? "")}))};
@@ -1493,6 +1538,7 @@ function renderGym(){
         <p class="nm">${e.n} 📖</p>
         ${seriesHTML(e, x, i, mio)}
       </div>
+      ${!e.p && mio && segundosDe(e.s).length ? cronoHTML(i, e.s) : ""}
       ${e.p ? (mio
         ? '<input class="kg" type="number" inputmode="decimal" placeholder="kg" data-i="'+i+'" value="'+esc(x.kg||"")+'">'
         : '<div style="display:flex;align-items:center;padding-right:12px;font-weight:800;font-size:14px">'+(x.kg?esc(x.kg)+" kg":"")+'</div>') : ""}
@@ -1564,6 +1610,7 @@ function renderGym(){
     window._entrenoHoy = fechaGym===hoy() ? sesionG.registro.ejercicios.every(y=>y.hecho) : window._entrenoHoy;
     render();
   };});
+  cronoWire();
   document.querySelectorAll(".ser").forEach(inp=>{
     inp.onclick = ev=>ev.stopPropagation();   // que tocar la casilla no abra la ficha
     inp.onchange = async ()=>{

@@ -271,3 +271,9 @@ button.hb-d{background:none;font-family:inherit;cursor:pointer;touch-action:mani
 /* Series editables en cada ejercicio */
 .ej .ser-fila{display:flex;align-items:center;gap:6px}
 .ej .ser{width:42px;padding:4px 4px;border:2px solid var(--line);border-radius:8px;font-size:14px;font-weight:800;text-align:center;background:var(--card);color:var(--ink)}
+
+/* Cuenta atrás de los ejercicios por tiempo (plancha…) */
+.ej .crono{display:flex;align-items:center;gap:6px;padding-right:10px}
+.ej .crono button{min-width:44px;height:36px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-weight:800;font-size:14px;cursor:pointer;font-variant-numeric:tabular-nums}
+.ej .crono button.on{background:var(--carrot);border-color:var(--carrot);color:#fff}
+.ej .crono button.fin{background:var(--green);border-color:var(--green);color:#fff}
